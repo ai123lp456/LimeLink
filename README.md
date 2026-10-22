@@ -27,11 +27,11 @@ LimeLink 是一个局域网优先的通知同步工具：Android 端通过 `Noti
 ```mermaid
 flowchart LR
     A["Android 通知"] --> B["NotificationListenerService"]
-    B --> C["HTTP POST /notify<br/>TCP 8787"]
-    C --> D["limehost<br/>Windows 托盘程序"]
+    B --> C["HTTP POST /notify (TCP 8787)"]
+    C --> D["limehost (Windows 托盘程序)"]
     D --> E["Windows Toast"]
     B -. "配对 / 心跳" .-> D
-    B <--> F["UDP 8788<br/>局域网发现"]
+    B <--> F["UDP 8788 (局域网发现)"]
     F <--> D
 ```
 
