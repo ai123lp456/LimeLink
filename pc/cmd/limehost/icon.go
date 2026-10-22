@@ -1,0 +1,54 @@
+package main
+
+import (
+	"embed"
+
+	"github.com/getlantern/systray"
+)
+
+//go:embed assets/lime.ico assets/icons/wechat.png assets/icons/sms.png assets/icons/system.png
+var iconFS embed.FS
+
+// loadIcon 加载托盘图标。
+func loadIcon() []byte {
+	b, err := iconFS.ReadFile("assets/lime.ico")
+	if err == nil && len(b) > 0 {
+		return b
+	}
+	return fallbackPng()
+}
+
+// loadIconPNG 按类型加载 Toast 小图标（返回文件路径不可用，这里改为返回字节；notifier 需要额外处理）。
+// 当前保留，供未来扩展。
+func loadIconPNG(iconType string) []byte {
+	names := map[string]string{
+		"wechat": "assets/icons/wechat.png",
+		"sms":    "assets/icons/sms.png",
+		"system": "assets/icons/system.png",
+	}
+	name, ok := names[iconType]
+	if !ok {
+		return nil
+	}
+	b, err := iconFS.ReadFile(name)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+// fallbackPng 返回一个 1x1 透明 PNG 字节流。
+func fallbackPng() []byte {
+	return []byte{
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+		0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+		0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54,
+		0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00,
+		0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00,
+		0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+	}
+}
+
+var _ = systray.SetIcon

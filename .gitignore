@@ -1,0 +1,49 @@
+# 本机路径与签名机密（绝不提交）
+local.properties
+android/local.properties
+keystore.properties
+android/keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+
+# 构建产物
+.gradle/
+**/.gradle/
+.kotlin/
+**/.kotlin/
+.cxx/
+**/.cxx/
+**/build/
+pc/bin/
+bin/
+release/
+*.apk
+*.aab
+*.exe
+*.dll
+*.test
+*.out
+
+# IDE 与操作系统文件
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志与临时文件
+*.log
+*.tmp
+*.bak
+
+# 以下文件是构建或分发所必需的，不能被上面的规则误伤
+!android/gradle/wrapper/gradle-wrapper.jar
+!pc/cmd/limehost/*.syso
+!pc/internal/toast/LICENSE
+!assets/icon/*.png
+!assets/icon/*.ico

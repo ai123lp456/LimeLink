@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- 背景圆（青柠绿底） -->
+  <circle cx="256" cy="256" r="240" fill="#7CB342"/>
+  <circle cx="256" cy="256" r="240" fill="none" stroke="#558B2F" stroke-width="8"/>
+  <!-- 青柠果肉（浅绿圆） -->
+  <circle cx="256" cy="256" r="170" fill="#AED581"/>
+  <!-- 果肉纹理（放射线） -->
+  <g stroke="#9CCC65" stroke-width="10" stroke-linecap="round">
+    <line x1="256" y1="86" x2="256" y2="426"/>
+    <line x1="86" y1="256" x2="426" y2="256"/>
+    <line x1="136" y1="136" x2="376" y2="376"/>
+    <line x1="376" y1="136" x2="136" y2="376"/>
+  </g>
+  <!-- 叶子 -->
+  <path d="M256 86 C 280 40 360 20 400 50 C 380 110 320 130 256 86 Z" fill="#558B2F"/>
+  <path d="M256 86 C 300 70 360 60 396 68 C 370 100 320 110 256 86 Z" fill="#33691E"/>
+  <!-- 高光 -->
+  <ellipse cx="196" cy="190" rx="60" ry="40" fill="#FFFFFF" opacity="0.25" transform="rotate(-30 196 190)"/>
+</svg>

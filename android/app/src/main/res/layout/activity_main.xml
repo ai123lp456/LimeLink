@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="小青柠"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#558B2F" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="LimeLink"
+            android:textSize="14sp"
+            android:textColor="#9E9E9E"
+            android:layout_marginBottom="20dp" />
+
+        <!-- 设备命名与列表（v1.2.0，参考 LocalSend 交互） -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="设备"
+            android:textStyle="bold"
+            android:layout_marginBottom="6dp" />
+
+        <TextView
+            android:id="@+id/tvDeviceCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="本机：设备名\n对方：电脑端  ○ 未连接"
+            android:textColor="#558B2F"
+            android:textSize="14sp"
+            android:padding="10dp"
+            android:background="#F1F8E9" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <EditText
+                android:id="@+id/etDeviceName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="3"
+                android:hint="本机设备名" />
+
+            <Button
+                android:id="@+id/btnRename"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="改名" />
+        </LinearLayout>
+
+        <!-- 电脑端连接 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="电脑端地址"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etHost"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="3"
+                android:hint="电脑 IP（如 192.168.1.5）"
+                android:inputType="text" />
+
+            <EditText
+                android:id="@+id/etPort"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="端口"
+                android:inputType="number" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/etPair"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="电脑端显示的 6 位配对码"
+            android:inputType="number"
+            android:layout_marginTop="10dp" />
+
+        <Button
+            android:id="@+id/btnPair"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="连接并配对"
+            android:layout_marginTop="10dp" />
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="尚未连接"
+            android:textColor="#757575"
+            android:layout_marginTop="12dp" />
+
+        <!-- 开关 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="同步开关"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="6dp" />
+
+        <Switch
+            android:id="@+id/swSync"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="总开关（通知同步）" />
+
+        <Switch
+            android:id="@+id/swWechat"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="微信通知" />
+
+        <Switch
+            android:id="@+id/swSms"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="短信通知" />
+
+        <Switch
+            android:id="@+id/swApp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="其他 App 通知" />
+
+        <Switch
+            android:id="@+id/swSystem"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="系统通知（低电量等）" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="提示：需在系统设置中开启「小青柠」的通知读取权限，微信如需显示内容请在微信设置开启「通知显示消息详情」。"
+            android:textSize="12sp"
+            android:textColor="#9E9E9E"
+            android:layout_marginTop="20dp" />
+
+        <TextView
+            android:id="@+id/tvVersion"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="#BDBDBD"
+            android:layout_marginTop="8dp" />
+    </LinearLayout>
+</ScrollView>

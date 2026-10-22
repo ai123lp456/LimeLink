@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.LimeLink" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#7CB342</item>
+        <item name="colorPrimaryVariant">#558B2F</item>
+        <item name="colorSecondary">#AED581</item>
+    </style>
+</resources>
