@@ -18,7 +18,7 @@ import (
 var iconFS embed.FS
 
 // DefaultAppID 是 Toast 的 AppUserModelID（含版本，便于在系统通知设置中区分来源）。
-const DefaultAppID = "LimeLink.Notification.1.2.2"
+const DefaultAppID = "LimeLink.Notification.1.3.0"
 
 // toastGroup 是所有 Toast 统一的 Group；Tag 区分来源，两者配合实现覆盖。
 const toastGroup = "LimeLink"

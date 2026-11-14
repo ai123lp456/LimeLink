@@ -5,71 +5,86 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings as AndroidSettings
+import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
+/**
+ * 主界面（v1.3.0 高饱和块面改版）。
+ *
+ * 交互参考 LocalSend：打开就能看到「附近的电脑」，点一下就发起连接，
+ * 电脑端界面点「允许」即完成配对；6 位配对码和手动 IP 作为备用通道保留。
+ */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var settings: Settings
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    private lateinit var cardState: LinearLayout
+    private lateinit var tvStateTitle: TextView
+    private lateinit var tvStateSub: TextView
+    private lateinit var tvStatusPill: TextView
+    private lateinit var tvScanHint: TextView
+    private lateinit var tvDeviceCard: TextView
+    private lateinit var deviceList: LinearLayout
+
+    private lateinit var etPair: EditText
     private lateinit var etHost: EditText
     private lateinit var etPort: EditText
-    private lateinit var etPair: EditText
-    private lateinit var btnPair: Button
-    private lateinit var tvStatus: TextView
-    private lateinit var swSync: Switch
+    private lateinit var etDeviceName: EditText
 
+    private lateinit var btnScan: Button
+    private lateinit var btnPause: Button
+    private lateinit var btnPairCode: Button
+    private lateinit var btnPairManual: Button
+    private lateinit var btnRename: Button
+
+    private lateinit var swSync: Switch
     private lateinit var swWechat: Switch
     private lateinit var swSms: Switch
     private lateinit var swApp: Switch
     private lateinit var swSystem: Switch
 
-    // 设备命名（v1.2.0）
-    private lateinit var tvDeviceCard: TextView
-    private lateinit var etDeviceName: EditText
-    private lateinit var btnRename: Button
+    private var devices: List<PcDevice> = emptyList()
+    private var scanning = false
 
     private val stateListener: (ConnectionState) -> Unit = { st ->
         runOnUiThread {
-            tvStatus.text = statusText(st)
-            renderDeviceCard()
+            renderState(st)
+            renderDevices()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
         settings = Settings(this)
         bindViews()
-
         loadState()
         requestPostNotificationsIfNeeded()
         showVersion()
-
-        btnPair.setOnClickListener { doPair() }
-        btnRename.setOnClickListener { doRename() }
+        renderState(ConnectionManager.state)
     }
 
     override fun onResume() {
         super.onResume()
-        // 订阅唯一状态机
         ConnectionManager.addListener(stateListener)
-        // 回到前台时用真实状态刷新常驻状态通知（覆盖「权限被关」场景）
         StatusNotification.refresh(this)
-        renderDeviceCard()
         ConnectionManager.start(settings)
-        if (!StatusNotification.hasListenerPermission(this) && settings.isSyncEnabled()) {
-            tvStatus.text = "通知同步未开启：请在系统设置里开启小青柠的通知读取权限"
-        }
+        renderDeviceCard()
+        renderDevices()
+        scanDevices(auto = true)
     }
 
     override fun onPause() {
@@ -77,42 +92,56 @@ class MainActivity : AppCompatActivity() {
         ConnectionManager.removeListener(stateListener)
     }
 
-    /** 「关于」位置显示版本号（读自构建配置，不会与 versionName 脱节）。 */
+    override fun onDestroy() {
+        super.onDestroy()
+        scope.cancel()
+    }
+
+    private fun bindViews() {
+        cardState = findViewById(R.id.cardState)
+        tvStateTitle = findViewById(R.id.tvStateTitle)
+        tvStateSub = findViewById(R.id.tvStateSub)
+        tvStatusPill = findViewById(R.id.tvStatusPill)
+        tvScanHint = findViewById(R.id.tvScanHint)
+        tvDeviceCard = findViewById(R.id.tvDeviceCard)
+        deviceList = findViewById(R.id.deviceList)
+        etPair = findViewById(R.id.etPair)
+        etHost = findViewById(R.id.etHost)
+        etPort = findViewById(R.id.etPort)
+        etDeviceName = findViewById(R.id.etDeviceName)
+        btnScan = findViewById(R.id.btnScan)
+        btnPause = findViewById(R.id.btnPause)
+        btnPairCode = findViewById(R.id.btnPairCode)
+        btnPairManual = findViewById(R.id.btnPairManual)
+        btnRename = findViewById(R.id.btnRename)
+        swSync = findViewById(R.id.swSync)
+        swWechat = findViewById(R.id.swWechat)
+        swSms = findViewById(R.id.swSms)
+        swApp = findViewById(R.id.swApp)
+        swSystem = findViewById(R.id.swSystem)
+
+        btnScan.setOnClickListener { scanDevices(auto = false) }
+        btnPause.setOnClickListener { togglePause() }
+        btnPairCode.setOnClickListener { pairByCode() }
+        btnPairManual.setOnClickListener { connectManually() }
+        btnRename.setOnClickListener { doRename() }
+    }
+
     private fun showVersion() {
         val v = try {
             packageManager.getPackageInfo(packageName, 0).versionName
         } catch (e: Exception) {
             ""
         }
-        findViewById<TextView>(R.id.tvVersion).text = "小青柠 LimeLink v$v"
+        findViewById<TextView>(R.id.tvVersion).text = "小青柠 LimeLink v$v · 电脑端 1.3.0"
     }
 
-    /**
-     * Android 13+ 需要运行时通知权限，常驻状态通知才能显示。
-     * 该权限只影响状态通知的可见性，与「通知读取权限」无关。
-     */
     private fun requestPostNotificationsIfNeeded() {
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100)
         }
-    }
-
-    private fun bindViews() {
-        etHost = findViewById(R.id.etHost)
-        etPort = findViewById(R.id.etPort)
-        etPair = findViewById(R.id.etPair)
-        btnPair = findViewById(R.id.btnPair)
-        tvStatus = findViewById(R.id.tvStatus)
-        swSync = findViewById(R.id.swSync)
-        swWechat = findViewById(R.id.swWechat)
-        swSms = findViewById(R.id.swSms)
-        swApp = findViewById(R.id.swApp)
-        swSystem = findViewById(R.id.swSystem)
-        tvDeviceCard = findViewById(R.id.tvDeviceCard)
-        etDeviceName = findViewById(R.id.etDeviceName)
-        btnRename = findViewById(R.id.btnRename)
     }
 
     private fun loadState() {
@@ -124,15 +153,13 @@ class MainActivity : AppCompatActivity() {
         swSms.isChecked = settings.isCategoryEnabled(Category.SMS)
         swApp.isChecked = settings.isCategoryEnabled(Category.APP)
         swSystem.isChecked = settings.isCategoryEnabled(Category.SYSTEM)
+        updatePauseButton()
 
         swSync.setOnCheckedChangeListener { _, v ->
             settings.setSyncEnabled(v)
-            if (v) {
-                ConnectionManager.resume(settings)
-            } else {
-                ConnectionManager.pause()
-            }
-            tvStatus.text = if (v) "通知同步已开启" else "通知同步未开启"
+            if (v) ConnectionManager.resume(settings) else ConnectionManager.pause()
+            updatePauseButton()
+            renderState(ConnectionManager.state)
             StatusNotification.refresh(this)
         }
         swWechat.setOnCheckedChangeListener { _, v -> settings.setCategoryEnabled(Category.WECHAT, v) }
@@ -141,10 +168,80 @@ class MainActivity : AppCompatActivity() {
         swSystem.setOnCheckedChangeListener { _, v -> settings.setCategoryEnabled(Category.SYSTEM, v) }
     }
 
-    /** 渲染设备卡片：显示对方（电脑端）名字 + 当前连接状态点。 */
+    private fun updatePauseButton() {
+        btnPause.text = if (settings.isSyncEnabled()) "暂停同步" else "恢复同步"
+    }
+
+    private fun togglePause() {
+        val next = !settings.isSyncEnabled()
+        settings.setSyncEnabled(next)
+        swSync.isChecked = next
+        if (next) ConnectionManager.resume(settings) else ConnectionManager.pause()
+        updatePauseButton()
+        renderState(ConnectionManager.state)
+        StatusNotification.refresh(this)
+    }
+
+    // ------------------------------------------------------------ 渲染
+
+    private fun renderState(st: ConnectionState) {
+        val paired = !settings.token.isNullOrEmpty()
+        val reading = StatusNotification.hasListenerPermission(this)
+        val title = when (st) {
+            ConnectionState.CONNECTED -> "已连接电脑"
+            ConnectionState.CONNECTING -> "正在连接…"
+            ConnectionState.RECONNECTING -> "正在重连…"
+            ConnectionState.PAUSED -> "已暂停同步"
+            ConnectionState.DISCONNECTED -> if (paired) "等待重连" else "还没连上电脑"
+        }
+        val sub = when {
+            !reading -> "还没开启通知读取权限：去系统设置里给「小青柠」打开，才能同步通知。"
+            st == ConnectionState.CONNECTED -> "通知正在镜像到「${ConnectionManager.pcName.ifEmpty { "电脑" }}」"
+            st == ConnectionState.PAUSED -> "总开关已关闭，打开后自动恢复。"
+            ConnectionManager.diagnose.isNotEmpty() -> ConnectionManager.diagnose
+            else -> "手机和电脑连同一个 Wi-Fi，下面会自动出现这台电脑。"
+        }
+        tvStateTitle.text = title
+        tvStateSub.text = sub
+        tvStatusPill.text = when (st) {
+            ConnectionState.CONNECTED -> "已连接"
+            ConnectionState.CONNECTING -> "连接中"
+            ConnectionState.RECONNECTING -> "重连中"
+            ConnectionState.PAUSED -> "已暂停"
+            ConnectionState.DISCONNECTED -> if (paired) "待重连" else "未连接"
+        }
+
+        val ink = ContextCompat.getColor(this, R.color.ink)
+        val lime = ContextCompat.getColor(this, R.color.lime)
+        when (st) {
+            ConnectionState.CONNECTED -> {
+                cardState.setBackgroundResource(R.drawable.bg_block_lime)
+                tvStateTitle.setTextColor(ink)
+                tvStateSub.setTextColor(ink)
+                tvStatusPill.setBackgroundResource(R.drawable.bg_tag_lime)
+                tvStatusPill.setTextColor(ink)
+            }
+            ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> {
+                cardState.setBackgroundResource(R.drawable.bg_block_ink)
+                tvStateTitle.setTextColor(lime)
+                tvStateSub.setTextColor(ContextCompat.getColor(this, R.color.paper_2))
+                tvStatusPill.setBackgroundResource(R.drawable.bg_tag_lime)
+                tvStatusPill.setTextColor(ink)
+            }
+            else -> {
+                cardState.setBackgroundResource(R.drawable.bg_block_paper)
+                tvStateTitle.setTextColor(ink)
+                tvStateSub.setTextColor(ContextCompat.getColor(this, R.color.muted))
+                tvStatusPill.setBackgroundResource(R.drawable.bg_tag_ink)
+                tvStatusPill.setTextColor(lime)
+            }
+        }
+        renderDeviceCard()
+    }
+
     private fun renderDeviceCard() {
         val st = ConnectionManager.state
-        val pcName = ConnectionManager.pcName.ifEmpty { "电脑端" }
+        val pcName = ConnectionManager.pcName.ifEmpty { settings.host ?: "电脑端" }
         val dot = when (st) {
             ConnectionState.CONNECTED -> "● 已连接"
             ConnectionState.CONNECTING -> "◌ 连接中"
@@ -152,58 +249,171 @@ class MainActivity : AppCompatActivity() {
             ConnectionState.DISCONNECTED -> "○ 未连接"
             ConnectionState.PAUSED -> "‖ 已暂停"
         }
-        val own = settings.deviceName
-        tvDeviceCard.text = "本机：$own\n对方：$pcName  $dot"
+        tvDeviceCard.text = "本机：${settings.deviceName}\n对方：$pcName  $dot"
+    }
+
+    private fun renderDevices() {
+        deviceList.removeAllViews()
+        if (devices.isEmpty()) {
+            val tv = TextView(this).apply {
+                text = "没发现电脑。确认电脑端已启动、手机和电脑在同一 Wi-Fi 或热点，然后点上面的「重新扫描」。"
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.muted))
+                textSize = 12f
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+                setBackgroundResource(R.drawable.bg_block_paper)
+            }
+            deviceList.addView(tv, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ))
+            return
+        }
+        val inflater = LayoutInflater.from(this)
+        devices.forEach { d ->
+            val item = inflater.inflate(R.layout.item_device, deviceList, false)
+            item.findViewById<TextView>(R.id.tvDevName).text = d.name
+            val meta = StringBuilder("${d.host}:${d.port}")
+            if (d.version.isNotEmpty()) meta.append("  ·  v").append(d.version)
+            item.findViewById<TextView>(R.id.tvDevMeta).text = meta.toString()
+
+            val stateTag = item.findViewById<TextView>(R.id.tvDevState)
+            val connected = ConnectionManager.state == ConnectionState.CONNECTED && settings.host == d.host
+            val sameHost = settings.host == d.host && !settings.token.isNullOrEmpty()
+            when {
+                connected -> {
+                    stateTag.text = "已连接"
+                    stateTag.setBackgroundResource(R.drawable.bg_tag_lime)
+                }
+                sameHost -> {
+                    stateTag.text = "已配对"
+                    stateTag.setBackgroundResource(R.drawable.bg_tag_paper)
+                }
+                else -> {
+                    stateTag.text = "可连接"
+                    stateTag.setBackgroundResource(R.drawable.bg_tag_paper)
+                }
+            }
+
+            val btn = item.findViewById<Button>(R.id.btnDevConnect)
+            btn.text = if (connected) "已连接" else "连接这台电脑"
+            btn.isEnabled = !connected
+            btn.setOnClickListener { connectTo(d) }
+
+            val hint = item.findViewById<TextView>(R.id.tvDevHint)
+            hint.text = when {
+                d.id.startsWith("legacy-") -> "旧版电脑端，可能要配对码"
+                sameHost -> "点一下直接恢复连接"
+                else -> "电脑上会弹确认，点允许即可"
+            }
+
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            lp.bottomMargin = dp(12)
+            deviceList.addView(item, lp)
+        }
+        tvScanHint.text = ""
+    }
+
+    // ------------------------------------------------------------ 扫描与连接
+
+    private fun scanDevices(auto: Boolean) {
+        if (scanning) return
+        scanning = true
+        if (!auto) tvScanHint.text = "正在扫描局域网…"
+        scope.launch {
+            val found = Discovery.scan(settings.deviceId)
+            devices = found
+            scanning = false
+            renderDevices()
+            if (found.isEmpty()) {
+                tvScanHint.text = "没找到电脑：确认电脑端已启动（托盘有小青柠图标），并且和手机在同一网络。"
+            } else {
+                tvScanHint.text = "发现 ${found.size} 台电脑 · 点「连接这台电脑」，电脑上再点「允许」"
+            }
+        }
+    }
+
+    private fun connectTo(d: PcDevice) {
+        if (!settings.isSyncEnabled()) {
+            toast("同步已暂停，先打开总开关")
+            return
+        }
+        etHost.setText(d.host)
+        etPort.setText(d.port.toString())
+        tvStateTitle.text = "正在连接…"
+        tvStateSub.text = "正在联系「${d.name}」"
+        ConnectionManager.connectAsync(settings, d) { result ->
+            if (result.ok) {
+                toast("已连接「${d.name}」")
+                requestNotificationAccess()
+                StatusNotification.refresh(this)
+            } else {
+                toast(result.message)
+            }
+            renderState(ConnectionManager.state)
+            renderDevices()
+        }
+    }
+
+    private fun pairByCode() {
+        val code = etPair.text.toString().trim()
+        if (code.length != 6) {
+            toast("配对码是电脑端显示的 6 位数字")
+            return
+        }
+        val host = etHost.text.toString().trim().ifEmpty {
+            devices.firstOrNull()?.host ?: ""
+        }
+        if (host.isEmpty()) {
+            toast("先扫描到电脑，或手动填写 IP 地址")
+            return
+        }
+        val port = etPort.text.toString().trim().toIntOrNull() ?: 8787
+        tvStateSub.text = "正在用配对码连接…"
+        scope.launch {
+            val ok = ConnectionManager.pair(settings, host, port, code)
+            if (ok) {
+                toast("配对成功，已连接")
+                requestNotificationAccess()
+                StatusNotification.refresh(this@MainActivity)
+            } else {
+                toast(ConnectionManager.diagnose.ifEmpty { "连接失败" })
+            }
+            renderState(ConnectionManager.state)
+            renderDevices()
+        }
+    }
+
+    private fun connectManually() {
+        val host = etHost.text.toString().trim()
+        if (host.isEmpty()) {
+            toast("先填写电脑 IP 地址")
+            return
+        }
+        val port = etPort.text.toString().trim().toIntOrNull() ?: 8787
+        val dev = PcDevice(id = "manual-$host", name = host, host = host, port = port, version = "")
+        connectTo(dev)
     }
 
     private fun doRename() {
         val name = etDeviceName.text.toString().trim()
         settings.deviceName = name
+        etDeviceName.setText(settings.deviceName)
         renderDeviceCard()
-        tvStatus.text = "已改名为「${settings.deviceName}」，下次连接时对方刷新可见"
+        toast("已改名为「${settings.deviceName}」，电脑端下次刷新可见")
     }
 
-    /** 由状态机驱动的状态文案。 */
-    private fun statusText(st: ConnectionState): String = when (st) {
-        ConnectionState.DISCONNECTED -> ConnectionManager.diagnose.ifEmpty { "未连接" }
-        ConnectionState.CONNECTING -> "正在连接电脑端…"
-        ConnectionState.CONNECTED -> "已连接，开始同步"
-        ConnectionState.RECONNECTING -> ConnectionManager.diagnose.ifEmpty { "正在重连…" }
-        ConnectionState.PAUSED -> "已暂停同步"
-    }
-
-    private fun doPair() {
-        val host = etHost.text.toString().trim()
-        val port = etPort.text.toString().trim().toIntOrNull() ?: 8787
-        val code = etPair.text.toString().trim()
-
-        if (host.isEmpty()) {
-            tvStatus.text = "请填写电脑端 IP 地址"
-            return
-        }
-        if (code.isEmpty()) {
-            tvStatus.text = "请填写电脑端显示的配对码"
-            return
-        }
-
-        tvStatus.text = "正在连接电脑端…"
-        scope.launch {
-            ConnectionManager.pair(settings, host, port, code)
-            runOnUiThread {
-                // 状态机已通过 listener 更新 tvStatus；这里补一个权限引导
-                requestNotificationAccess()
-                StatusNotification.refresh(this@MainActivity)
-                renderDeviceCard()
-            }
-        }
-    }
-
-    /**
-     * 引导用户开启通知读取权限；已开启则不跳转。
-     */
     private fun requestNotificationAccess() {
         if (!StatusNotification.hasListenerPermission(this)) {
             startActivity(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
     }
+
+    private fun toast(text: String) {
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 }

@@ -1,4 +1,4 @@
-// Package config 处理 LimeLink 电脑端配置（端口等）。
+// Package config 处理 LimeLink 电脑端配置（端口、设备名、界面开关）。
 package config
 
 import (
@@ -14,8 +14,9 @@ import (
 
 // Config 是持久化配置。
 type Config struct {
-	Port    int    `json:"port"`
-	DevName string `json:"device_name,omitempty"` // 电脑端设备名（v1.2.0）
+	Port     int    `json:"port"`
+	DevName  string `json:"device_name,omitempty"` // 电脑端设备名
+	NoWindow bool   `json:"no_window,omitempty"`   // 启动时不自动打开界面（v1.3.0）
 }
 
 // Name 返回设备名；空则回默认名。
@@ -26,13 +27,13 @@ func (c Config) Name() string {
 	return c.DevName
 }
 
-// DefaultPort 默认端口。
+// DefaultPort 默认 HTTP 端口。
 const DefaultPort = 8787
 
-// DefaultName 默认电脑端设备名（v1.2.0，首次运行自动生成后缀）。
+// DefaultName 默认电脑端设备名前缀（首次运行自动生成后缀）。
 const DefaultName = "LimeLink-PC"
 
-// ConfigDir 返回配置目录（用户级）。
+// ConfigDir 返回配置与数据目录（用户级，%APPDATA%\LimeLink）。
 func ConfigDir() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
@@ -67,8 +68,7 @@ func Load() Config {
 
 // defaultGeneratedName 生成默认设备名（MAC 后 4 位大写，无网卡时随机）。
 func defaultGeneratedName() string {
-	suffix := hostIDSuffix()
-	return fmt.Sprintf("%s-%s", DefaultName, suffix)
+	return fmt.Sprintf("%s-%s", DefaultName, hostIDSuffix())
 }
 
 // hostIDSuffix 取第一块非回环、非全 0 网卡 MAC 的后 4 位（大写）；
@@ -96,7 +96,6 @@ func hostIDSuffix() string {
 			}
 		}
 	}
-	// 回退：4 位随机十六进制
 	b := make([]byte, 2)
 	_, _ = rand.Read(b)
 	return strings.ToUpper(hex.EncodeToString(b))
