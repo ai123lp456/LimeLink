@@ -1,229 +1,214 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- 瑞士极简：无卡片、无阴影、无圆角，靠字号层级 + 1px 细线 + 8dp 节奏 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/paper"
-    android:fillViewport="true"
-    android:scrollbars="none">
+    android:orientation="vertical"
+    android:background="@color/paper">
 
+    <!-- 顶栏 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="18dp"
-        android:paddingBottom="28dp">
+        android:paddingEnd="16dp">
 
-        <!-- ============ 品牌块 ============ -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_block_lime"
-            android:padding="16dp">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="小青柠"
-                    style="@style/Text.Block.Title" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="LIMELINK · 通知镜像到电脑"
-                    style="@style/Text.Block.Mono"
-                    android:textColor="@color/ink_soft" />
-            </LinearLayout>
-
-            <TextView
-                android:id="@+id/tvStatusPill"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_tag_ink"
-                android:paddingStart="9dp"
-                android:paddingEnd="9dp"
-                android:paddingTop="7dp"
-                android:paddingBottom="7dp"
-                android:text="未连接"
-                android:textColor="@color/lime"
-                android:textSize="10sp"
-                android:textStyle="bold"
-                android:fontFamily="monospace"
-                android:letterSpacing="0.08" />
-        </LinearLayout>
-
-        <!-- ============ 运行状态块 ============ -->
-        <LinearLayout
-            android:id="@+id/cardState"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="vertical"
-            android:background="@drawable/bg_block_ink"
-            android:padding="16dp">
-
-            <TextView
-                android:id="@+id/tvStateTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="等待连接电脑"
-                android:textColor="@color/lime"
-                android:textSize="19sp"
-                android:textStyle="bold"
-                android:fontFamily="sans-serif-condensed" />
-
-            <TextView
-                android:id="@+id/tvStateSub"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="5dp"
-                android:text="手机和电脑连同一个 Wi-Fi，下面会自动出现这台电脑。"
-                android:textColor="#D9D6CC"
-                android:textSize="11.5sp"
-                android:lineSpacingExtra="2dp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:orientation="horizontal">
-
-                <Button
-                    android:id="@+id/btnScan"
-                    style="@style/Widget.Block.Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="44dp"
-                    android:text="重新扫描" />
-
-                <Button
-                    android:id="@+id/btnPause"
-                    style="@style/Widget.Block.Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="44dp"
-                    android:layout_marginStart="10dp"
-                    android:background="@drawable/btn_block_ghost"
-                    android:text="暂停同步" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- ============ 附近的电脑 ============ -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="8dp"
-            android:text="附近的电脑"
-            style="@style/Text.Block.Section" />
-
-        <LinearLayout
-            android:id="@+id/deviceList"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" />
+            android:text="小青柠"
+            android:textColor="@color/ink"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:fontFamily="sans-serif-condensed"
+            android:letterSpacing="0.02" />
 
         <TextView
-            android:id="@+id/tvScanHint"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="正在扫描局域网…"
-            style="@style/Text.Block.Hint" />
+            android:layout_marginStart="8dp"
+            android:text="LIMELINK"
+            android:textColor="@color/muted"
+            android:textSize="9sp"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.18" />
 
-        <!-- ============ 配对码（备用） ============ -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <View
+            android:id="@+id/dotStatus"
+            android:layout_width="7dp"
+            android:layout_height="7dp"
+            android:background="@color/rule" />
+
+        <TextView
+            android:id="@+id/tvStatusPill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:text="未连接"
+            android:textColor="@color/muted"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/rule" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none"
+        android:clipToPadding="false"
+        android:paddingBottom="12dp">
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
             android:orientation="vertical"
-            android:background="@drawable/bg_card_block"
-            android:padding="16dp">
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp">
 
+            <!-- 附近的电脑 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="附近的电脑"
+                    android:textColor="@color/muted"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.14" />
+
+                <TextView
+                    android:id="@+id/btnScan"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:gravity="center"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:text="刷新"
+                    android:textColor="@color/ink"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/deviceList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="2dp" />
+
+            <TextView
+                android:id="@+id/tvScanHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="正在扫描局域网…"
+                android:textColor="@color/muted"
+                android:textSize="11sp"
+                android:lineSpacingExtra="3dp"
+                android:layout_marginBottom="6dp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/rule"
+                android:layout_marginTop="8dp" />
+
+            <!-- 备用连接 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="配对码连接 / 手动地址"
-                style="@style/Text.Block.Section" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="扫描不到时用：填电脑端显示的 6 位码，或直接填地址。"
-                style="@style/Text.Block.Hint" />
+                android:layout_marginTop="12dp"
+                android:text="用配对码 / 手动地址连接"
+                android:textColor="@color/muted"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.14" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
                 android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:paddingTop="10dp"
+                android:paddingBottom="10dp">
 
                 <EditText
                     android:id="@+id/etPair"
                     android:layout_width="0dp"
-                    android:layout_height="52dp"
-                    android:layout_weight="1"
+                    android:layout_height="44dp"
+                    android:layout_weight="1.2"
                     android:background="@drawable/bg_input"
                     android:hint="6 位配对码"
                     android:inputType="number"
                     android:maxLength="6"
                     android:gravity="center"
-                    android:textSize="20sp"
+                    android:textSize="15sp"
                     android:fontFamily="monospace"
-                    android:letterSpacing="0.28"
                     android:textColor="@color/ink"
                     android:textColorHint="@color/muted"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp" />
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp" />
 
-                <Button
+                <TextView
                     android:id="@+id/btnPairCode"
-                    style="@style/Widget.Block.Button"
                     android:layout_width="wrap_content"
-                    android:layout_height="52dp"
-                    android:layout_marginStart="10dp"
-                    android:background="@drawable/btn_block_ink"
-                    android:textColor="@color/lime"
-                    android:text="连接" />
+                    android:layout_height="44dp"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="配对码连接"
+                    android:textColor="@color/ink"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
             </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
                 android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:paddingBottom="12dp">
 
                 <EditText
                     android:id="@+id/etHost"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_weight="3"
+                    android:layout_height="44dp"
+                    android:layout_weight="2.2"
                     android:background="@drawable/bg_input"
-                    android:hint="电脑 IP（如 192.168.1.5）"
+                    android:hint="手动地址 192.168.1.5"
                     android:inputType="text"
                     android:textSize="13sp"
                     android:fontFamily="monospace"
                     android:textColor="@color/ink"
                     android:textColorHint="@color/muted"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp" />
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp" />
 
                 <EditText
                     android:id="@+id/etPort"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_weight="1.2"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
                     android:layout_marginStart="8dp"
                     android:background="@drawable/bg_input"
                     android:hint="8787"
@@ -233,40 +218,69 @@
                     android:gravity="center"
                     android:textColor="@color/ink"
                     android:textColorHint="@color/muted" />
+
+                <TextView
+                    android:id="@+id/btnPairManual"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:gravity="center"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="4dp"
+                    android:text="连接"
+                    android:textColor="@color/ink"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
             </LinearLayout>
 
-            <Button
-                android:id="@+id/btnPairManual"
-                style="@style/Widget.Block.Button"
+            <View
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/btn_block_ghost"
-                android:text="用这个地址连接" />
-        </LinearLayout>
+                android:layout_height="1dp"
+                android:background="@color/rule" />
 
-        <!-- ============ 同步开关 ============ -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:orientation="vertical"
-            android:background="@drawable/bg_card_block"
-            android:padding="16dp">
+            <!-- 运行状态 -->
+            <TextView
+                android:id="@+id/tvStateTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="还没连上电脑"
+                android:textColor="@color/ink"
+                android:textSize="15sp"
+                android:textStyle="bold" />
 
+            <TextView
+                android:id="@+id/tvStateSub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:layout_marginBottom="12dp"
+                android:text="手机和电脑连同一个 Wi-Fi，上面会自动出现这台电脑。"
+                android:textColor="@color/muted"
+                android:textSize="12sp"
+                android:lineSpacingExtra="3dp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/rule" />
+
+            <!-- 同步开关 -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="同步开关"
-                style="@style/Text.Block.Section" />
+                android:layout_marginTop="14dp"
+                android:text="同步"
+                android:textColor="@color/muted"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.14" />
 
             <Switch
                 android:id="@+id/swSync"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:minHeight="44dp"
-                android:text="总开关（通知同步）"
+                android:layout_height="48dp"
+                android:text="通知同步总开关"
                 android:textColor="@color/ink"
                 android:textSize="14sp"
                 android:textStyle="bold" />
@@ -274,81 +288,99 @@
             <Switch
                 android:id="@+id/swWechat"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:minHeight="44dp"
-                android:text="微信通知"
+                android:layout_height="48dp"
+                android:text="微信"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
 
             <Switch
                 android:id="@+id/swSms"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:minHeight="44dp"
-                android:text="短信通知"
+                android:layout_height="48dp"
+                android:text="短信"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
 
             <Switch
                 android:id="@+id/swApp"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:minHeight="44dp"
-                android:text="其他 App 通知"
+                android:layout_height="48dp"
+                android:text="其他应用"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
 
             <Switch
                 android:id="@+id/swSystem"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:minHeight="44dp"
-                android:text="系统通知（低电量等）"
+                android:layout_height="48dp"
+                android:text="系统通知"
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
-        </LinearLayout>
 
-        <!-- ============ 本机 ============ -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:orientation="vertical"
-            android:background="@drawable/bg_card_block"
-            android:padding="16dp">
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/rule" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="本机"
-                style="@style/Text.Block.Section" />
-
-            <TextView
-                android:id="@+id/tvDeviceCard"
+            <!-- 本机 -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="本机：LimeLink-Phone\n对方：尚未连接"
-                android:textColor="@color/ink_soft"
-                android:textSize="12sp"
-                android:fontFamily="monospace"
-                android:lineSpacingExtra="3dp" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="12dp"
+                android:paddingBottom="10dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="本机"
+                        android:textColor="@color/muted"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.14" />
+
+                    <TextView
+                        android:id="@+id/tvDeviceCard"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="LimeLink-Phone"
+                        android:textColor="@color/ink"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/btnPause"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:gravity="center"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:text="暂停同步"
+                    android:textColor="@color/ink"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
                 android:orientation="horizontal"
-                android:gravity="center_vertical">
+                android:gravity="center_vertical"
+                android:paddingBottom="12dp">
 
                 <EditText
                     android:id="@+id/etDeviceName"
                     android:layout_width="0dp"
-                    android:layout_height="48dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_input"
                     android:hint="本机设备名"
@@ -356,34 +388,46 @@
                     android:textSize="13sp"
                     android:textColor="@color/ink"
                     android:textColorHint="@color/muted"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp" />
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp" />
 
-                <Button
+                <TextView
                     android:id="@+id/btnRename"
-                    style="@style/Widget.Block.Button"
                     android:layout_width="wrap_content"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="10dp"
-                    android:text="改名" />
+                    android:layout_height="44dp"
+                    android:gravity="center"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="4dp"
+                    android:text="改名"
+                    android:textColor="@color/ink"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
             </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/rule" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="需在系统设置里给「小青柠」开启通知读取权限；微信要显示内容，需在微信里开启「通知显示消息详情」。"
+                android:textColor="@color/muted"
+                android:textSize="11sp"
+                android:lineSpacingExtra="3dp" />
+
+            <TextView
+                android:id="@+id/tvVersion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="20dp"
+                android:text="小青柠 LimeLink"
+                android:textColor="@color/subtle"
+                android:textSize="10sp"
+                android:fontFamily="monospace" />
         </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:text="提示：需在系统设置里给「小青柠」开启通知读取权限；微信若要显示内容，需在微信设置里开启「通知显示消息详情」。"
-            style="@style/Text.Block.Hint" />
-
-        <TextView
-            android:id="@+id/tvVersion"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="小青柠 LimeLink"
-            android:textColor="#9E988C"
-            android:textSize="11sp"
-            android:fontFamily="monospace" />
-    </LinearLayout>
-</ScrollView>
+    </ScrollView>
+</LinearLayout>

@@ -51,7 +51,7 @@ const (
 )
 
 // ProtocolVersion 是电脑端协议版本号（发现应答与界面展示用）。
-const ProtocolVersion = "1.3.0"
+const ProtocolVersion = "1.3.1"
 
 // Notification 是一条从手机同步过来的通知。
 type Notification struct {
@@ -267,6 +267,30 @@ func (s *Server) Records() []Record {
 		out = append(out, s.records[i])
 	}
 	return out
+}
+
+// DeleteRecord 删除单条通知记录（界面右键菜单用）。返回是否删到。
+func (s *Server) DeleteRecord(id string) bool {
+	if id == "" {
+		return false
+	}
+	s.mu.Lock()
+	removed := false
+	out := s.records[:0]
+	for _, r := range s.records {
+		if r.ID == id {
+			removed = true
+			continue
+		}
+		out = append(out, r)
+	}
+	s.records = out
+	s.mu.Unlock()
+	if removed {
+		s.save()
+		s.broadcast(Event{Type: "records"})
+	}
+	return removed
 }
 
 // ClearRecords 清空通知记录。

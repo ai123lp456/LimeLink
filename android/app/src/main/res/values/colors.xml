@@ -1,19 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 高饱和块面调色板（与电脑端界面同源） -->
-    <color name="ink">#0B0B0F</color>
-    <color name="ink_soft">#2B2B33</color>
-    <color name="muted">#5C574D</color>
-    <color name="paper">#F2EEE3</color>
-    <color name="paper_2">#E7E1D2</color>
-    <color name="card">#FFFDF6</color>
-    <color name="lime">#C8FF2E</color>
-    <color name="lime_deep">#A8E000</color>
-    <color name="violet">#6A45F0</color>
-    <color name="cyan">#22E3F5</color>
-    <color name="pink">#FF3D8B</color>
-    <color name="amber">#FFB627</color>
-    <color name="green">#00C48C</color>
-    <color name="red">#FF3B30</color>
+    <!-- 瑞士极简：纸 / 墨 / 三阶灰 + 一个强调色（青柠），无阴影无圆角 -->
+    <color name="ink">#111113</color>
+    <color name="ink2">#2A2A2C</color>
+    <color name="muted">#6E6E68</color>
+    <color name="subtle">#9C9C95</color>
+    <color name="rule">#DCDCD5</color>
+    <color name="paper">#FAFAF7</color>
     <color name="white">#FFFFFF</color>
+    <color name="accent">#C8FF2E</color>
+    <color name="green">#15803D</color>
+    <color name="red">#B91C1C</color>
 </resources>

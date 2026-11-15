@@ -1,10 +1,10 @@
-// Command limehost 是 LimeLink 电脑端常驻程序（v1.3.0）。
+// Command limehost 是 LimeLink 电脑端常驻程序（v1.3.1）。
 //
 // 启动后做四件事：
-//  1. 起 HTTP 服务（默认 8787），接收手机推送的通知；界面 API 也在这里；
-//  2. 起 UDP 发现服务（8788），定时广播自己 + 应答手机探测（LocalSend 那套思路）；
-//  3. 托盘图标常驻，右键可打开主界面 / 看地址 / 改设备名 / 退出；
-//  4. 打开内嵌 Web 界面窗口（Edge 应用模式），也就是电脑端 UI。
+//  1. 起 HTTP 服务（默认 8787），接收手机推送的通知；
+//  2. 起 UDP 发现服务（8788），定时广播自己 + 应答手机探测；
+//  3. 托盘图标常驻（打开界面 / 地址 / 配对码 / 改名 / 记录 / 退出）；
+//  4. 打开原生界面窗口（Win32 + GDI+ 自绘，瑞士极简排版，无浏览器内核）。
 package main
 
 import (
@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -25,52 +26,46 @@ import (
 	"limelink/pc/internal/netinfo"
 	"limelink/pc/internal/notifier"
 	"limelink/pc/internal/server"
-	"limelink/pc/internal/webui"
+	"limelink/pc/internal/winui"
 )
 
 // appID 是 Toast 的 AppUserModelID（含版本，便于系统通知设置里区分）。
-const appID = "LimeLink.Notification.1.3.0"
+const appID = "LimeLink.Notification.1.3.1"
 
 // appVersion 是电脑端版本号（同步体现在 exe 资源、界面、README）。
-const appVersion = "1.3.0"
+const appVersion = "1.3.1"
 
 func main() {
 	setupLog()
-	log.Println("[boot] step1 setupLog")
 
 	cfg := config.Load()
-	log.Printf("[boot] step2 config port=%d name=%q\n", cfg.Port, cfg.Name())
 
-	// 已有实例在跑：把界面叫出来就行，不再抢端口
+	// 已有实例在跑：把它已经开着的窗口提到前台，然后退出，不再抢端口
 	if alreadyRunning(cfg.Port) {
-		log.Println("[boot] step3 already running, opening window")
-		_ = openWindow(uiURL(cfg.Port))
+		if !winui.BringToFront() {
+			log.Println("[boot] 已有实例在运行，但没找到它的窗口（可能被关闭到托盘）")
+		}
 		return
 	}
-	log.Println("[boot] step3 no running instance")
 
 	srv := server.NewWithName(newPairCode6(), cfg.Name(), config.ConfigDir())
 	srv.SetPort(cfg.Port)
 	ntf := notifier.New(appID)
-	httpSrv := srv.NewHTTPServer(ntf, webui.Handler())
-	log.Println("[boot] step4 server ready")
+	httpSrv := srv.NewHTTPServer(ntf, nil)
 
-	// 先开窗口：首次启动 Windows 放行防火墙可能要十几秒，
-	// 界面会显示「正在启动」并在服务就绪后自动接管。
-	if !cfg.NoWindow {
-		if err := openWindow(uiURL(cfg.Port)); err != nil {
-			log.Printf("[ui] 打开界面失败: %v\n", err)
-		}
-	}
+	ui := winui.New(srv, &controller{cfg: &cfg, srv: srv}, appVersion, cfg.ThemeName())
+	ui.AutoShow = !cfg.NoWindow
+	go ui.Run()
+	// 给窗口线程一点时间建窗，避免托盘首批点击时 hwnd 还是 0
+	time.Sleep(120 * time.Millisecond)
 
 	ln, port, err := listenWithFallback(cfg.Port)
 	if err != nil {
 		log.Printf("[fatal] 端口 %d~%d 均被占用: %v\n", cfg.Port, cfg.Port+4, err)
-		messageBox("小青柠 LimeLink",
+		_, _ = dlgs.Error("小青柠 LimeLink",
 			fmt.Sprintf("端口 %d~%d 都被占用，无法启动。\n请关闭占用端口的程序后重试。", cfg.Port, cfg.Port+4))
 		return
 	}
-	log.Printf("[boot] step5 listening on %d\n", port)
 	if port != cfg.Port {
 		log.Printf("[http] 端口 %d 被占用，改用 %d\n", cfg.Port, port)
 	}
@@ -93,7 +88,7 @@ func main() {
 	log.Printf("[http] 小青柠 LimeLink v%s 已启动，端口 %d（发现 %d），本机 IP %s，设备名 %s\n",
 		appVersion, port, discovery.DefaultPort, netinfo.LocalIPv4(), cfg.Name())
 
-	systray.Run(onReady(srv, ntf, cfg, httpSrv, disc), onExit)
+	systray.Run(onReady(srv, ntf, cfg, httpSrv, disc, ui), onExit)
 }
 
 // alreadyRunning 探测同一端口上是否已经有小青柠在跑。
@@ -105,8 +100,7 @@ func alreadyRunning(port int) bool {
 	}
 	defer resp.Body.Close()
 	var v struct {
-		Ok   bool   `json:"ok"`
-		Name string `json:"name"`
+		Ok bool `json:"ok"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
 		return false
@@ -120,13 +114,10 @@ func listenWithFallback(start int) (net.Listener, int, error) {
 	var lastErr error
 	for i := 0; i < 5; i++ {
 		p := start + i
-		t0 := time.Now()
 		ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", p))
 		if err == nil {
-			log.Printf("[boot] listen 0.0.0.0:%d 耗时 %v\n", p, time.Since(t0).Round(time.Millisecond))
 			return ln, p, nil
 		}
-		log.Printf("[boot] listen 0.0.0.0:%d 失败(%v) 耗时 %v\n", p, err, time.Since(t0).Round(time.Millisecond))
 		lastErr = err
 	}
 	return nil, start, lastErr
@@ -140,7 +131,7 @@ func setupLog() {
 	}
 	p := filepath.Join(dir, "limehost.log")
 	if st, err := os.Stat(p); err == nil && st.Size() > 1<<20 {
-		_ = os.Remove(p) // 超过 1MB 就重开，避免无限增长
+		_ = os.Remove(p)
 	}
 	f, err := os.OpenFile(p, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
@@ -165,7 +156,67 @@ func (p discoveryProvider) OnPeer(id, name, ip string) {
 	p.srv.NotePeerSeen(id, name, ip)
 }
 
-func onReady(srv *server.Server, ntf *notifier.Notifier, cfg config.Config, httpSrv *http.Server, disc *discovery.Service) func() {
+// controller 把界面动作落到真实的配置与服务上。
+type controller struct {
+	cfg *config.Config
+	srv *server.Server
+}
+
+func (c *controller) Rename(name string) error {
+	c.cfg.DevName = name
+	if err := c.cfg.Save(); err != nil {
+		return err
+	}
+	c.srv.SetName(name)
+	return nil
+}
+
+func (c *controller) ResetPair() string   { return c.srv.ResetPairCode() }
+func (c *controller) Approve(id string) bool { return c.srv.ApprovePairRequest(id) != nil }
+func (c *controller) Deny(id string) bool    { return c.srv.DenyPairRequest(id) }
+func (c *controller) Kick(id string) bool    { return c.srv.KickDevice(id) }
+func (c *controller) SendText(id, text string) bool { return c.srv.QueueText(id, text) }
+func (c *controller) ClearRecords()              { c.srv.ClearRecords() }
+func (c *controller) DeleteRecord(id string) bool { return c.srv.DeleteRecord(id) }
+
+// Notify 发一条系统通知（配对请求、过期提醒等），不阻塞界面线程。
+func (c *controller) Notify(title, text string) {
+	_ = notifier.Show(server.Notification{Title: title, Text: text, AppName: "LimeLink", IconType: "system"})
+}
+func (c *controller) StoreDir() string       { return config.ConfigDir() }
+
+// MarkCloseHinted 首次关闭窗口时给一次说明，之后不再打扰。
+func (c *controller) MarkCloseHinted() bool {
+	if c.cfg.CloseHinted {
+		return false
+	}
+	c.cfg.CloseHinted = true
+	_ = c.cfg.Save()
+	return true
+}
+
+func (c *controller) SetTheme(name string) error {
+	if name != "dark" {
+		name = "light"
+	}
+	c.cfg.Theme = name
+	return c.cfg.Save()
+}
+
+func (c *controller) OpenStore() error {
+	dir := config.ConfigDir()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return exec.Command("explorer", dir).Start()
+}
+
+func (c *controller) FirewallHelp() string {
+	return `netsh advfirewall firewall add rule name="LimeLink TCP 8787" dir=in action=allow protocol=TCP localport=8787
+netsh advfirewall firewall add rule name="LimeLink UDP 8788" dir=in action=allow protocol=UDP localport=8788`
+}
+
+func onReady(srv *server.Server, ntf *notifier.Notifier, cfg config.Config, httpSrv *http.Server, disc *discovery.Service, ui *winui.App) func() {
 	return func() {
 		systray.SetIcon(loadIcon())
 		systray.SetTooltip(fmt.Sprintf("小青柠 LimeLink v%s", appVersion))
@@ -205,9 +256,7 @@ func onReady(srv *server.Server, ntf *notifier.Notifier, cfg config.Config, http
 			for {
 				select {
 				case <-mOpen.ClickedCh:
-					if err := openWindow(uiURL(cfg.Port)); err != nil {
-						_ = notifier.ShowMsg("打开界面失败：" + err.Error())
-					}
+					ui.Show()
 				case <-mIP.ClickedCh:
 					mIP.SetTitle(ipMenuTitle(cfg))
 					showAddresses(cfg)
@@ -239,6 +288,7 @@ func onReady(srv *server.Server, ntf *notifier.Notifier, cfg config.Config, http
 						"小青柠 LimeLink 电脑端 v%s\n手机通知 → Windows 弹窗同步工具\n本机地址 %s:%d\n数据目录 %s",
 						appVersion, netinfo.LocalIPv4(), cfg.Port, config.ConfigDir()))
 				case <-mQuit.ClickedCh:
+					ui.Close()
 					shutdown(httpSrv, disc)
 					systray.Quit()
 					return
@@ -252,7 +302,7 @@ func onExit() {
 	log.Println("[exit] 小青柠已退出")
 }
 
-// shutdown 优雅关闭 HTTP 与 UDP 发现服务，并关掉界面窗口。
+// shutdown 优雅关闭 HTTP 与 UDP 发现服务。
 func shutdown(httpSrv *http.Server, disc *discovery.Service) {
 	disc.Stop()
 	done := make(chan struct{})
@@ -265,7 +315,6 @@ func shutdown(httpSrv *http.Server, disc *discovery.Service) {
 	case <-time.After(2 * time.Second):
 		log.Println("[exit] HTTP 服务关闭超时")
 	}
-	closeWindow()
 }
 
 // ipMenuTitle 计算托盘「本机地址」菜单项标题。

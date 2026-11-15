@@ -47,3 +47,6 @@ desktop.ini
 !pc/internal/toast/LICENSE
 !assets/icon/*.png
 !assets/icon/*.ico
+
+# Impeccable 评审快照（本地工具产物，不入库）
+.impeccable/

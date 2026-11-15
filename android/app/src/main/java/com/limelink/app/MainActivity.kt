@@ -6,7 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings as AndroidSettings
 import android.view.LayoutInflater
-import android.widget.Button
+import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Switch
@@ -21,20 +21,20 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * 主界面（v1.3.0 高饱和块面改版）。
+ * 主界面（v1.3.1 瑞士极简改版）。
  *
- * 交互参考 LocalSend：打开就能看到「附近的电脑」，点一下就发起连接，
- * 电脑端界面点「允许」即完成配对；6 位配对码和手动 IP 作为备用通道保留。
+ * 排版原则：无卡片、无阴影、无圆角；用字号层级、1px 细线和 14dp 内边距建立结构；
+ * 卡片压到 60dp 以内，正文 12–15sp（旧版是「大框小字」的块面风格）。
  */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var settings: Settings
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private lateinit var cardState: LinearLayout
     private lateinit var tvStateTitle: TextView
     private lateinit var tvStateSub: TextView
     private lateinit var tvStatusPill: TextView
+    private lateinit var dotStatus: View
     private lateinit var tvScanHint: TextView
     private lateinit var tvDeviceCard: TextView
     private lateinit var deviceList: LinearLayout
@@ -44,11 +44,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etPort: EditText
     private lateinit var etDeviceName: EditText
 
-    private lateinit var btnScan: Button
-    private lateinit var btnPause: Button
-    private lateinit var btnPairCode: Button
-    private lateinit var btnPairManual: Button
-    private lateinit var btnRename: Button
+    private lateinit var btnScan: TextView
+    private lateinit var btnPause: TextView
+    private lateinit var btnPairCode: TextView
+    private lateinit var btnPairManual: TextView
+    private lateinit var btnRename: TextView
 
     private lateinit var swSync: Switch
     private lateinit var swWechat: Switch
@@ -98,10 +98,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindViews() {
-        cardState = findViewById(R.id.cardState)
         tvStateTitle = findViewById(R.id.tvStateTitle)
         tvStateSub = findViewById(R.id.tvStateSub)
         tvStatusPill = findViewById(R.id.tvStatusPill)
+        dotStatus = findViewById(R.id.dotStatus)
         tvScanHint = findViewById(R.id.tvScanHint)
         tvDeviceCard = findViewById(R.id.tvDeviceCard)
         deviceList = findViewById(R.id.deviceList)
@@ -133,7 +133,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             ""
         }
-        findViewById<TextView>(R.id.tvVersion).text = "小青柠 LimeLink v$v · 电脑端 1.3.0"
+        findViewById<TextView>(R.id.tvVersion).text = "小青柠 LimeLink v$v · 电脑端 1.3.1"
     }
 
     private fun requestPostNotificationsIfNeeded() {
@@ -199,7 +199,7 @@ class MainActivity : AppCompatActivity() {
             st == ConnectionState.CONNECTED -> "通知正在镜像到「${ConnectionManager.pcName.ifEmpty { "电脑" }}」"
             st == ConnectionState.PAUSED -> "总开关已关闭，打开后自动恢复。"
             ConnectionManager.diagnose.isNotEmpty() -> ConnectionManager.diagnose
-            else -> "手机和电脑连同一个 Wi-Fi，下面会自动出现这台电脑。"
+            else -> "手机和电脑连同一个 Wi-Fi，上面会自动出现这台电脑。"
         }
         tvStateTitle.text = title
         tvStateSub.text = sub
@@ -210,57 +210,29 @@ class MainActivity : AppCompatActivity() {
             ConnectionState.PAUSED -> "已暂停"
             ConnectionState.DISCONNECTED -> if (paired) "待重连" else "未连接"
         }
-
-        val ink = ContextCompat.getColor(this, R.color.ink)
-        val lime = ContextCompat.getColor(this, R.color.lime)
-        when (st) {
-            ConnectionState.CONNECTED -> {
-                cardState.setBackgroundResource(R.drawable.bg_block_lime)
-                tvStateTitle.setTextColor(ink)
-                tvStateSub.setTextColor(ink)
-                tvStatusPill.setBackgroundResource(R.drawable.bg_tag_lime)
-                tvStatusPill.setTextColor(ink)
-            }
-            ConnectionState.CONNECTING, ConnectionState.RECONNECTING -> {
-                cardState.setBackgroundResource(R.drawable.bg_block_ink)
-                tvStateTitle.setTextColor(lime)
-                tvStateSub.setTextColor(ContextCompat.getColor(this, R.color.paper_2))
-                tvStatusPill.setBackgroundResource(R.drawable.bg_tag_lime)
-                tvStatusPill.setTextColor(ink)
-            }
-            else -> {
-                cardState.setBackgroundResource(R.drawable.bg_block_paper)
-                tvStateTitle.setTextColor(ink)
-                tvStateSub.setTextColor(ContextCompat.getColor(this, R.color.muted))
-                tvStatusPill.setBackgroundResource(R.drawable.bg_tag_ink)
-                tvStatusPill.setTextColor(lime)
-            }
-        }
+        val on = st == ConnectionState.CONNECTED
+        dotStatus.setBackgroundColor(
+            ContextCompat.getColor(this, if (on) R.color.accent else R.color.rule)
+        )
+        tvStatusPill.setTextColor(
+            ContextCompat.getColor(this, if (on) R.color.ink else R.color.muted)
+        )
         renderDeviceCard()
     }
 
     private fun renderDeviceCard() {
-        val st = ConnectionManager.state
-        val pcName = ConnectionManager.pcName.ifEmpty { settings.host ?: "电脑端" }
-        val dot = when (st) {
-            ConnectionState.CONNECTED -> "● 已连接"
-            ConnectionState.CONNECTING -> "◌ 连接中"
-            ConnectionState.RECONNECTING -> "◌ 重连中"
-            ConnectionState.DISCONNECTED -> "○ 未连接"
-            ConnectionState.PAUSED -> "‖ 已暂停"
-        }
-        tvDeviceCard.text = "本机：${settings.deviceName}\n对方：$pcName  $dot"
+        tvDeviceCard.text = settings.deviceName
     }
 
     private fun renderDevices() {
         deviceList.removeAllViews()
         if (devices.isEmpty()) {
             val tv = TextView(this).apply {
-                text = "没发现电脑。确认电脑端已启动、手机和电脑在同一 Wi-Fi 或热点，然后点上面的「重新扫描」。"
+                text = "没发现电脑。确认电脑端已启动、手机和电脑在同一 Wi-Fi，然后点右上角「刷新」。"
                 setTextColor(ContextCompat.getColor(this@MainActivity, R.color.muted))
-                textSize = 12f
-                setPadding(dp(14), dp(14), dp(14), dp(14))
-                setBackgroundResource(R.drawable.bg_block_paper)
+                textSize = 11.5f
+                setLineSpacing(6f, 1f)
+                setPadding(0, dp(6), 0, dp(10))
             }
             deviceList.addView(tv, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -282,20 +254,21 @@ class MainActivity : AppCompatActivity() {
             when {
                 connected -> {
                     stateTag.text = "已连接"
-                    stateTag.setBackgroundResource(R.drawable.bg_tag_lime)
+                    stateTag.setTextColor(ContextCompat.getColor(this, R.color.green))
                 }
                 sameHost -> {
                     stateTag.text = "已配对"
-                    stateTag.setBackgroundResource(R.drawable.bg_tag_paper)
+                    stateTag.setTextColor(ContextCompat.getColor(this, R.color.muted))
                 }
                 else -> {
                     stateTag.text = "可连接"
-                    stateTag.setBackgroundResource(R.drawable.bg_tag_paper)
+                    stateTag.setTextColor(ContextCompat.getColor(this, R.color.muted))
                 }
             }
 
-            val btn = item.findViewById<Button>(R.id.btnDevConnect)
-            btn.text = if (connected) "已连接" else "连接这台电脑"
+            val btn = item.findViewById<TextView>(R.id.btnDevConnect)
+            btn.text = if (connected) "已连接" else "连接"
+            btn.alpha = if (connected) 0.4f else 1f
             btn.isEnabled = !connected
             btn.setOnClickListener { connectTo(d) }
 
@@ -306,12 +279,16 @@ class MainActivity : AppCompatActivity() {
                 else -> "电脑上会弹确认，点允许即可"
             }
 
-            val lp = LinearLayout.LayoutParams(
+            deviceList.addView(item, LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            lp.bottomMargin = dp(12)
-            deviceList.addView(item, lp)
+            ))
+
+            val divider = View(this)
+            divider.setBackgroundColor(ContextCompat.getColor(this, R.color.rule))
+            deviceList.addView(divider, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)
+            ))
         }
         tvScanHint.text = ""
     }
@@ -330,7 +307,7 @@ class MainActivity : AppCompatActivity() {
             if (found.isEmpty()) {
                 tvScanHint.text = "没找到电脑：确认电脑端已启动（托盘有小青柠图标），并且和手机在同一网络。"
             } else {
-                tvScanHint.text = "发现 ${found.size} 台电脑 · 点「连接这台电脑」，电脑上再点「允许」"
+                tvScanHint.text = "发现 ${found.size} 台电脑 · 点「连接」，电脑上再点「允许」"
             }
         }
     }

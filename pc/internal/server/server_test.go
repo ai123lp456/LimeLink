@@ -233,3 +233,22 @@ func TestPairRateLimit(t *testing.T) {
 		t.Fatalf("失败 %d 次后应返回 429，得到 %d（历史状态 %v）", pairMaxFails, res.StatusCode, statuses)
 	}
 }
+
+// 单条记录删除（界面右键菜单用）。
+func TestDeleteRecord(t *testing.T) {
+	s, _ := newTestServer(t, "123456")
+	d := s.upsertDevice("phone-d", "手机D", "10.0.0.3")
+	s.addRecord(Notification{ID: "keep", Title: "保留"}, d)
+	s.addRecord(Notification{ID: "drop", Title: "删除"}, d)
+
+	if !s.DeleteRecord("drop") {
+		t.Fatal("删除失败")
+	}
+	recs := s.Records()
+	if len(recs) != 1 || recs[0].ID != "keep" {
+		t.Fatalf("删除后应只剩 keep，实际 %+v", recs)
+	}
+	if s.DeleteRecord("drop") {
+		t.Fatal("重复删除应返回 false")
+	}
+}

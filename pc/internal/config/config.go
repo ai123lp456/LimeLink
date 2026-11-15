@@ -17,6 +17,18 @@ type Config struct {
 	Port     int    `json:"port"`
 	DevName  string `json:"device_name,omitempty"` // 电脑端设备名
 	NoWindow bool   `json:"no_window,omitempty"`   // 启动时不自动打开界面（v1.3.0）
+	Theme    string `json:"theme,omitempty"`       // 界面主题：light / dark（v1.3.1）
+
+	// CloseHinted 是否已经解释过「关窗不退出」
+	CloseHinted bool `json:"close_hinted,omitempty"`
+}
+
+// ThemeName 返回界面主题（light / dark），空则浅色。
+func (c Config) ThemeName() string {
+	if c.Theme == "dark" {
+		return "dark"
+	}
+	return "light"
 }
 
 // Name 返回设备名；空则回默认名。
