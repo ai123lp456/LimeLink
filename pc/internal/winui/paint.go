@@ -60,7 +60,9 @@ const (
 
 	statBlockH = 114
 	feedRowH   = 118
-	settingRow = 70
+	// v1.3.2：设置页多了「合并重复通知 / 重复通知静音」两行（7 行 × 64 = 448），
+	// 行高从 70 收到 64，同时压缩「关于」区块的上下留白，保证最底部不出窗口。
+	settingRow = 64
 	railW      = 320
 	btnH       = 38
 )
@@ -588,7 +590,8 @@ func (u *ui) drawFeedRow(r server.Record, x, y, width, height int32) {
 	}
 	label := map[string]string{"wechat": "微信", "sms": "短信", "system": "系统"}[cat]
 	if label == "" {
-		label = truncRunes(r.AppName, 3)
+		// v1.3.2：4 个字刚好放得下（「时间侦探」不再被截成「时间侦」）
+		label = truncRunes(r.AppName, 4)
 		if label == "" {
 			label = "应用"
 		}
@@ -600,13 +603,34 @@ func (u *ui) drawFeedRow(r server.Record, x, y, width, height int32) {
 	if title == "" {
 		title = r.AppName
 	}
-	// 时间固定占右侧 86px，标题宽度扣掉它，长标题自动省略，不会压到时间
+	// 时间固定占右侧 124px，标题宽度扣掉它，长标题自动省略，不会压到时间
 	timeW := u.i(124)
 	textX := x + u.i(86)
 	textW := width - u.i(86) - u.i(14)
 	titleW := textW - timeW
-	u.textW(title, textX, y+u.i(12), titleW, tsFeedTitle, true, u.c.ink)
-	u.textR(stampText(r.ReceivedAt), x+width, y+u.i(24), tsFeedTime, false, u.c.subtle)
+
+	// v1.3.2：实时记录（被原地合并的计时 / 进度通知）行首给一个青柠色方块，
+	// 时间栏前置「实时」，让人知道这条在变。
+	titleX := textX
+	if r.Live {
+		mark := u.i(7)
+		u.p.rect(rect{textX, y + u.i(25), textX + mark, y + u.i(25) + mark}, u.c.accent)
+		titleX = textX + mark + u.i(9)
+		titleW -= titleX - textX
+	}
+	u.textW(title, titleX, y+u.i(12), titleW, tsFeedTitle, true, u.c.ink)
+
+	shown := r.ReceivedAt
+	if !r.UpdatedAt.IsZero() {
+		shown = r.UpdatedAt // 实时记录显示最后一次刷新的时间
+	}
+	stamp := stampText(shown)
+	timeCol := u.c.subtle
+	if r.Live {
+		stamp = "实时 " + stamp
+		timeCol = u.c.ink2
+	}
+	u.textR(stamp, x+width, y+u.i(24), tsFeedTime, false, timeCol)
 
 	// 整行可右键：复制正文 / 复制标题 / 删除这条
 	rowID := rowPrefix + r.ID
@@ -836,6 +860,8 @@ func (u *ui) drawSettings() {
 		danger bool
 	}
 	rows := []row{
+		{"合并重复通知", "同一条通知被应用反复刷新时原地更新，不新增行 · " + onOffMark(st.MergeRepeat), "togglemerge", toggleAction(st.MergeRepeat), false},
+		{"重复通知静音", "合并与重复的通知只更新画面，不响铃 · " + onOffMark(st.MuteRepeat), "togglemute", toggleAction(st.MuteRepeat), false},
 		{"设备名", st.Name, "rename", "改名", false},
 		{"通知记录", fmt.Sprintf("%d 条（最多 200 条）", len(st.Records)), "clear", "清空", true},
 		{"数据目录", shrinkPath(st.StoreDir), "store", "打开", false},
@@ -878,12 +904,12 @@ func (u *ui) drawSettings() {
 	}
 
 	// 关于
-	ay := y + u.i(94)
+	ay := y + u.i(78)
 	u.p.hline(x0, ay-u.i(18), cw, u.c.rule)
 	u.label("关于 · ABOUT", x0, ay)
 	items := []struct{ k, v string }{
 		{"版本", "v" + st.Version},
-		{"协议", "LIMELINK3"},
+		{"协议", "LIMELINK4"},
 		{"端口", fmt.Sprintf("%d", st.Port)},
 		{"启动", startedAt(st.StartedAt)},
 		{"累计通知", fmt.Sprintf("%d", st.NotifyCount)},
@@ -900,7 +926,7 @@ func (u *ui) drawSettings() {
 		u.textW(it.v, cx, iy+u.i(22), colW-u.i(24), tsAboutVal, false, u.c.ink)
 	}
 
-	by := iy + u.i(72)
+	by := iy + u.i(54)
 	u.textBtn("about", "关于小青柠 LimeLink", x0, by, u.c.ink)
 	u.textW("原生 Win32 + GDI+ 自绘，无浏览器内核。", x0+u.i(240), by+u.i(2), cw-u.i(240), tsHint, false, u.c.subtle)
 }

@@ -1,7 +1,46 @@
 # 测试与验收清单
 
-本文件记录 v1.3.1 的验证状态：哪些是自动化验证过的，哪些还需要人工过一遍。
+本文件记录 v1.3.2 的验证状态：哪些是自动化验证过的，哪些还需要人工过一遍。
 提交 PR 前建议先跑一遍「自动化」部分。
+
+## v1.3.2 新增验收项（重复通知去重 / 合并 / 静音）
+
+| # | 场景 | 期望 | 状态 |
+|---|---|---|---|
+| 1 | 时间侦探计时通知持续 10 分钟 | 新增记录 ≤2 条，提示音 ≤1 次，内容能实时刷新 | 电脑端模拟 20 连发已自动验证；真机 10 分钟待人工 |
+| 2 | 全站重复率（10 秒内同应用同标题） | 从 68% 降到 <10% | 自测脚本口径已验证（见下） |
+| 3 | 微信连续 3 条不同内容 | 3 条记录、3 次提示音，同来源仍然覆盖 | 已自动验证 |
+| 4 | 微信同一条消息被系统重发 | 不产生第 2 条记录 | 已自动验证（含老客户端无 key 的情况） |
+| 5 | 同一条通知正文 10:42 → 10:47 | 不新增记录（合并），不响 | 已自动验证 |
+| 6 | 验证码 1234 → 5678 | 必须新增一条并响（归一化没误伤） | 已自动验证 |
+| 7 | 旧手机端（1.2.x / 1.3.x，不发新字段） | 不崩、不劣化；计时类刷屏也能兜底去重 | 已自动验证（protocol 3 请求） |
+| 8 | 记录区 200 条 | 同一 key 最多 1 条，真实消息不被挤掉 | 逻辑已实现，长跑待人工 |
+| 9 | 两个开关关闭后 | 行为回到 1.3.1 | 已自动验证 |
+| 10 | `go vet ./...`、`go test ./...` | 全绿，含去重/合并单测 | 已自动验证 |
+
+自动化命令：
+
+```powershell
+cd pc
+go vet ./...
+go test ./... -run 'Normalize|Live|Different|Legacy|Repeat|Mute|Protocol|Silent|ToastTag' -v
+```
+
+对应单测：
+
+- `TestNormalizeContent` / `TestLiveNotificationMergesAndMutes` / `TestDifferentContentStillAdded`
+- `TestLegacyClientDuplicateSuppressed` / `TestLegacyTimerSpamSuppressed`
+- `TestRepeatSwitchesOffRestoreLegacy` / `TestMuteOffKeepsMergeButRings`
+- `TestNotifyProtocolCompatibility` / `TestSilentNotificationMuted` / `TestToastTagPerSource`
+
+端到端脚本（不污染真实数据，临时 `%APPDATA%`）：
+
+1. 启动 `LimeLink-PC-1.3.2.exe`；
+2. 从 `/api/state` 取配对码 → `POST /pair` 拿 token；
+3. 同 key 连打 20 次 `/notify`（只改数字，`live=true`）；
+4. 断言 `/debug/state`：`record_count=1`、`notify_count=1`、`notify_merged=19`；
+5. 再打验证码 2 条 + 微信 3 条不同内容 + 1 条重发，断言记录数与 `silent` 标记；
+6. 统计 `limehost.log` 里「成功 / 合并 / 忽略重复」三种结果的比例。
 
 ## 自动化（电脑端）
 
@@ -24,10 +63,14 @@ go test ./...
 
 界面（原生窗口，抓图后做像素统计）：
 
-- [x] 窗口按系统 DPI 创建（150% 缩放下客户区 1680×1110 = 逻辑 1120×740），文字按真实像素渲染
-- [x] 四个页面各自渲染，切换后画面内容不同（颜色数 59–90，墨色像素约 5%，底色 93%）
+- [x] 窗口按系统 DPI 创建（150% 缩放下客户区 1920×1380 = 逻辑 1280×920），文字按真实像素渲染
+- [x] 四个页面各自渲染，切换后画面内容不同
 - [x] 品牌色块、页面标题、列表文字、细线都在预期位置（抽样像素核对）
 - [x] 无渲染异常：窗口持续响应、GDI+ 初始化成功、`go vet` 无告警
+- [x] v1.3.2 排版自检（`LIME_TEXTLOG` 文本坐标两两比对）：四页 **0 处文字重叠**、**0 处内容出窗口**，
+      最大 x=1878 / 窗口 1920，最大 y=1341 / 窗口 1380
+- [x] v1.3.2 通知流「实时」标记：实时记录行首青柠色方块、时间栏「实时 17:35」、标题右移 14px（文本日志核对）
+- [x] v1.3.2 截图已按新版重抓（`assets/screenshot/` 深浅各 4 页，1920×1380）
 
 ## 已自动验证（本轮交互改造）
 

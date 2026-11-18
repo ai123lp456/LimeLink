@@ -67,6 +67,14 @@ class Settings(context: Context) {
     fun setCategoryEnabled(c: Category, v: Boolean) =
         prefs.edit().putBoolean("cat_${c.name}", v).apply()
 
+    /**
+     * 是否合并计时/进度类通知（v1.3.2，默认开）。
+     * 关掉后完全不判重、不静音，回到 1.3.1 的「收到就推」行为。
+     */
+    fun isMergeLiveEnabled(): Boolean = prefs.getBoolean("merge_live", true)
+
+    fun setMergeLiveEnabled(v: Boolean) = prefs.edit().putBoolean("merge_live", v).apply()
+
     private fun randomHex(n: Int): String {
         val chars = "0123456789ABCDEF"
         return buildString {

@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var swSms: Switch
     private lateinit var swApp: Switch
     private lateinit var swSystem: Switch
+    private lateinit var swMerge: Switch
 
     private var devices: List<PcDevice> = emptyList()
     private var scanning = false
@@ -119,6 +120,7 @@ class MainActivity : AppCompatActivity() {
         swSms = findViewById(R.id.swSms)
         swApp = findViewById(R.id.swApp)
         swSystem = findViewById(R.id.swSystem)
+        swMerge = findViewById(R.id.swMerge)
 
         btnScan.setOnClickListener { scanDevices(auto = false) }
         btnPause.setOnClickListener { togglePause() }
@@ -133,7 +135,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             ""
         }
-        findViewById<TextView>(R.id.tvVersion).text = "小青柠 LimeLink v$v · 电脑端 1.3.1"
+        findViewById<TextView>(R.id.tvVersion).text = "小青柠 LimeLink v$v · 电脑端 1.3.2"
     }
 
     private fun requestPostNotificationsIfNeeded() {
@@ -153,6 +155,7 @@ class MainActivity : AppCompatActivity() {
         swSms.isChecked = settings.isCategoryEnabled(Category.SMS)
         swApp.isChecked = settings.isCategoryEnabled(Category.APP)
         swSystem.isChecked = settings.isCategoryEnabled(Category.SYSTEM)
+        swMerge.isChecked = settings.isMergeLiveEnabled()
         updatePauseButton()
 
         swSync.setOnCheckedChangeListener { _, v ->
@@ -166,6 +169,7 @@ class MainActivity : AppCompatActivity() {
         swSms.setOnCheckedChangeListener { _, v -> settings.setCategoryEnabled(Category.SMS, v) }
         swApp.setOnCheckedChangeListener { _, v -> settings.setCategoryEnabled(Category.APP, v) }
         swSystem.setOnCheckedChangeListener { _, v -> settings.setCategoryEnabled(Category.SYSTEM, v) }
+        swMerge.setOnCheckedChangeListener { _, v -> settings.setMergeLiveEnabled(v) }
     }
 
     private fun updatePauseButton() {

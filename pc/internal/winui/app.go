@@ -30,6 +30,9 @@ type Controller interface {
 	StoreDir() string
 	OpenStore() error
 	SetTheme(name string) error
+	// ToggleMergeRepeat / ToggleMuteRepeat 切换重复通知的两个开关，返回切换后的值（v1.3.2）
+	ToggleMergeRepeat() bool
+	ToggleMuteRepeat() bool
 	// FirewallHelp 返回给用户看的放行命令文本
 	FirewallHelp() string
 }
@@ -303,17 +306,22 @@ func (a *App) teardown() {
 // refreshState 拉一份快照，返回是否有变化。
 func (a *App) refreshState() bool {
 	st := a.srv.Snapshot(a.version)
-	fp := fmt.Sprintf("%d|%d|%d|%d|%s|%s|%d", st.PairedCount, st.OnlineCount, len(st.Records),
-		len(st.Pending), st.Code, st.Name, st.StartedAt/1000)
-	if len(st.Records) > 0 {
-		fp += "|" + st.Records[0].ID
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d|%d|%d|%d|%s|%s|%d|%t|%t", st.PairedCount, st.OnlineCount, len(st.Records),
+		len(st.Pending), st.Code, st.Name, st.StartedAt/1000, st.MergeRepeat, st.MuteRepeat)
+	// 记录指纹要含 UpdatedAt：实时记录被「原地更新」时 ID 不变，
+	// 只看 ID 会导致界面不刷新，计时类通知的数字就永远是第一次的值。
+	for _, r := range st.Records {
+		fmt.Fprintf(&b, "|%s:%d", r.ID, r.UpdatedAt.UnixMilli())
 	}
 	for _, d := range st.Devices {
-		fp += fmt.Sprintf("|%s%d", d.ID, b2i(d.Online))
+		fmt.Fprintf(&b, "|%s%d", d.ID, b2i(d.Online))
 	}
 	for _, p := range st.Pending {
-		fp += "|" + p.ID
+		b.WriteString("|")
+		b.WriteString(p.ID)
 	}
+	fp := b.String()
 	a.state = st
 
 	// 新通知计数：滚到下面时来了新消息，顶部给一个可点的提示
@@ -390,6 +398,30 @@ func b2i(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// onOffWord 把开关状态转成提示语用词（开启 / 关闭）。
+func onOffWord(v bool) string {
+	if v {
+		return "开启"
+	}
+	return "关闭"
+}
+
+// onOffMark 把开关状态转成设置页右栏的小字（开 / 关）。
+func onOffMark(v bool) string {
+	if v {
+		return "开"
+	}
+	return "关"
+}
+
+// toggleAction 返回开关按钮上的动作词。
+func toggleAction(v bool) string {
+	if v {
+		return "关闭"
+	}
+	return "打开"
 }
 
 func (a *App) invalidate() {
@@ -845,6 +877,10 @@ func (a *App) onClick(id string) {
 			_ = a.ctrl.SetTheme(name)
 			a.showToast("主题已切换为" + map[string]string{"dark": "深色", "light": "浅色"}[name])
 		}
+	case "togglemerge":
+		a.showToast("合并重复通知已" + onOffWord(a.ctrl.ToggleMergeRepeat()))
+	case "togglemute":
+		a.showToast("重复通知静音已" + onOffWord(a.ctrl.ToggleMuteRepeat()))
 	case "newpill":
 		a.scroll = 0
 		a.newCount = 0

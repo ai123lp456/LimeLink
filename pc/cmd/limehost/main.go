@@ -30,10 +30,10 @@ import (
 )
 
 // appID 是 Toast 的 AppUserModelID（含版本，便于系统通知设置里区分）。
-const appID = "LimeLink.Notification.1.3.1"
+const appID = "LimeLink.Notification.1.3.2"
 
 // appVersion 是电脑端版本号（同步体现在 exe 资源、界面、README）。
-const appVersion = "1.3.1"
+const appVersion = "1.3.2"
 
 func main() {
 	setupLog()
@@ -50,6 +50,8 @@ func main() {
 
 	srv := server.NewWithName(newPairCode6(), cfg.Name(), config.ConfigDir())
 	srv.SetPort(cfg.Port)
+	// v1.3.2：把「合并重复通知 / 重复通知静音」两个开关落到服务里（缺省都开）
+	srv.SetRepeatOptions(cfg.MergeRepeatEnabled(), cfg.MuteRepeatEnabled())
 	ntf := notifier.New(appID)
 	httpSrv := srv.NewHTTPServer(ntf, nil)
 
@@ -201,6 +203,22 @@ func (c *controller) SetTheme(name string) error {
 	}
 	c.cfg.Theme = name
 	return c.cfg.Save()
+}
+
+// ToggleMergeRepeat 切换「合并重复通知」，返回切换后的值（v1.3.2）。
+func (c *controller) ToggleMergeRepeat() bool {
+	c.cfg.SetMergeRepeat(!c.cfg.MergeRepeatEnabled())
+	_ = c.cfg.Save()
+	c.srv.SetRepeatOptions(c.cfg.MergeRepeatEnabled(), c.cfg.MuteRepeatEnabled())
+	return c.cfg.MergeRepeatEnabled()
+}
+
+// ToggleMuteRepeat 切换「重复通知静音」，返回切换后的值（v1.3.2）。
+func (c *controller) ToggleMuteRepeat() bool {
+	c.cfg.SetMuteRepeat(!c.cfg.MuteRepeatEnabled())
+	_ = c.cfg.Save()
+	c.srv.SetRepeatOptions(c.cfg.MergeRepeatEnabled(), c.cfg.MuteRepeatEnabled())
+	return c.cfg.MuteRepeatEnabled()
 }
 
 func (c *controller) OpenStore() error {

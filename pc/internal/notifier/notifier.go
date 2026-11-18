@@ -18,7 +18,7 @@ import (
 var iconFS embed.FS
 
 // DefaultAppID 是 Toast 的 AppUserModelID（含版本，便于在系统通知设置中区分来源）。
-const DefaultAppID = "LimeLink.Notification.1.3.1"
+const DefaultAppID = "LimeLink.Notification.1.3.2"
 
 // toastGroup 是所有 Toast 统一的 Group；Tag 区分来源，两者配合实现覆盖。
 const toastGroup = "LimeLink"
@@ -42,26 +42,38 @@ func (n *Notifier) OnNotification(nt server.Notification) {
 
 // Show 弹出一条通知。优先原生 Toast，失败降级托盘气泡。
 func (n *Notifier) Show(nt server.Notification) error {
+	t := buildToast(n.appID, nt)
+	if err := t.Push(); err != nil {
+		log.Printf("[toast] 弹窗失败，降级: %v\n", err)
+		return err
+	}
+	return nil
+}
+
+// buildToast 把一条通知组装成 Toast 结构（拆出来便于单测静音开关）。
+func buildToast(appID string, nt server.Notification) toast.Notification {
 	title := displayTitle(nt)
 	body := displayBody(nt)
 
 	t := toast.Notification{
-		AppID:   n.appID,
+		AppID:   appID,
 		Title:   title,
 		Message: body,
 		Tag:     toastTag(nt), // 同来源共用一个 Tag → 新 Toast 覆盖旧 Toast
 		Group:   toastGroup,
+	}
+	// v1.3.2：重复 / 合并类通知只更新画面，不响铃。
+	// 内嵌 toast 的模板是 {{if ne .Audio "silent"}}，所以必须显式设成 silent：
+	// 只设同一个 Tag 只能顶掉画面，声音照播（1.3.1 的老坑）。
+	if nt.Silent {
+		t.Audio = toast.Silent
 	}
 	if p := writeTempIcon(nt.IconType); p != "" {
 		t.Icon = p
 		// v1.1.0：不再删除临时图标。图标固定路径复用，
 		// 避免连续弹窗时上一条的图标文件被提前删除导致图标缺失。
 	}
-	if err := t.Push(); err != nil {
-		log.Printf("[toast] 弹窗失败，降级: %v\n", err)
-		return err
-	}
-	return nil
+	return t
 }
 
 // toastTag 按来源生成 Tag：同一来源的 Toast 用相同 Tag，新弹的立即替换旧的；

@@ -27,6 +27,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -48,10 +49,23 @@ const (
 	pendingTTL   = 120 * time.Second // 免码配对请求有效期
 	maxRecords   = 200               // 通知记录上限
 	maxOutbox    = 20                // 每台手机的待发文字上限
+
+	// v1.3.2：重复通知的内容兜底去重窗口（同 包名 + 标题 + 归一化正文）
+	repeatWindow   = 10 * time.Second
+	maxFingerprint = 256 // 指纹表上限，超出按时间清理
+
+	// liveMergeWindow 限制「实时记录原地合并」的时间跨度：
+	// 超过这个时长还来同 key 的实时通知，就当成新的一条（否则昨天的倒计时会把今天的记录吃掉）。
+	liveMergeWindow = 30 * time.Minute
 )
 
-// ProtocolVersion 是电脑端协议版本号（发现应答与界面展示用）。
-const ProtocolVersion = "1.3.1"
+// ProtocolVersion 是电脑端版本号（发现应答、界面展示与手机端兼容判断用）。
+const ProtocolVersion = "1.3.2"
+
+// ProtocolNum 是手机端协议号。v1.3.2 起为 4：
+// 新增 key / live / silent / alert_once / ongoing 五个可选字段，
+// 并继续兼容 protocol 3 的请求（老手机端不发这些字段，行为不劣化）。
+const ProtocolNum = 4
 
 // Notification 是一条从手机同步过来的通知。
 type Notification struct {
@@ -64,12 +78,21 @@ type Notification struct {
 	Pkg       string `json:"pkg"`       // 来源包名（用于 Toast Tag）
 	Hidden    bool   `json:"hidden"`    // 是否隐藏内容
 	Timestamp int64  `json:"ts"`        // 毫秒时间戳
+
+	// v1.3.2 新增（全部可选：老手机端不发、老电脑端忽略，都不报错）
+	Key       string `json:"key,omitempty"`        // 通知稳定 key（同一通知被刷新时不变）
+	Live      bool   `json:"live,omitempty"`       // 实时状态类（计时 / 进度 / 播放中）
+	Silent    bool   `json:"silent,omitempty"`     // 这条不要响
+	AlertOnce bool   `json:"alert_once,omitempty"` // 应用声明「别再提醒」
+	Ongoing   bool   `json:"ongoing,omitempty"`    // 常驻通知
 }
 
 // Record 是本地保存的一条同步记录。
 type Record struct {
 	Notification
 	ReceivedAt time.Time `json:"received_at"`
+	// UpdatedAt 是实时记录被原地合并的最后时间（v1.3.2）；零值表示从未更新过。
+	UpdatedAt  time.Time `json:"updated_at,omitempty"`
 	DeviceID   string    `json:"device_id,omitempty"`
 	DeviceName string    `json:"device_name,omitempty"`
 }
@@ -161,10 +184,18 @@ type Server struct {
 	subs    map[int]chan Event
 	nextSub int
 
+	// v1.3.2：重复通知的合并与静音（默认都开，缺省即开）
+	mergeRepeat bool
+	muteRepeat  bool
+	// 内容兜底去重表：指纹 → 最近一次被拦下的时间
+	lastFP map[string]time.Time
+
 	startTime     time.Time
 	lastNotifyAt  time.Time
 	notifyCount   int
 	notifyRejects int
+	notifyMerged  int // 被原地合并的推送数（v1.3.2）
+	notifyDup     int // 被内容去重拦下的推送数（v1.3.2）
 	todayDate     string
 	todayCount    int
 
@@ -174,17 +205,20 @@ type Server struct {
 // New 创建一个 Server，并尝试从 storeDir 恢复设备与记录。
 func New(pairCode string, storeDir string) *Server {
 	s := &Server{
-		pairCode:  pairCode,
-		name:      defaultDeviceNm,
-		devices:   make(map[string]*Device),
-		pending:   make(map[string]*PendingRequest),
-		outbox:    make(map[string][]Message),
-		fails:     make(map[string]*attempt),
-		records:   make([]Record, 0, maxRecords),
-		subs:      make(map[int]chan Event),
-		startTime: time.Now(),
-		todayDate: time.Now().Format("2006-01-02"),
-		storeDir:  storeDir,
+		pairCode:    pairCode,
+		name:        defaultDeviceNm,
+		devices:     make(map[string]*Device),
+		pending:     make(map[string]*PendingRequest),
+		outbox:      make(map[string][]Message),
+		fails:       make(map[string]*attempt),
+		records:     make([]Record, 0, maxRecords),
+		subs:        make(map[int]chan Event),
+		mergeRepeat: true,
+		muteRepeat:  true,
+		lastFP:      make(map[string]time.Time),
+		startTime:   time.Now(),
+		todayDate:   time.Now().Format("2006-01-02"),
+		storeDir:    storeDir,
 	}
 	s.load()
 	return s
@@ -303,26 +337,162 @@ func (s *Server) ClearRecords() {
 }
 
 func (s *Server) addRecord(n Notification, dev *Device) Record {
-	r := Record{Notification: n, ReceivedAt: time.Now()}
+	now := time.Now()
+	s.mu.Lock()
+	r := s.appendRecordLocked(n, dev, now)
+	s.mu.Unlock()
+	return r
+}
+
+// appendRecordLocked 追加一条记录并更新统计（调用方必须持锁）。
+func (s *Server) appendRecordLocked(n Notification, dev *Device, now time.Time) Record {
+	r := Record{Notification: n, ReceivedAt: now}
 	if dev != nil {
 		r.DeviceID = dev.ID
 		r.DeviceName = dev.Name
 	}
-	s.mu.Lock()
 	s.records = append(s.records, r)
 	if len(s.records) > maxRecords {
 		s.records = s.records[len(s.records)-maxRecords:]
 	}
-	s.lastNotifyAt = r.ReceivedAt
+	s.lastNotifyAt = now
 	s.notifyCount++
-	today := r.ReceivedAt.Format("2006-01-02")
+	today := now.Format("2006-01-02")
 	if today != s.todayDate {
 		s.todayDate = today
 		s.todayCount = 0
 	}
 	s.todayCount++
-	s.mu.Unlock()
 	return r
+}
+
+// SetRepeatOptions 设置重复通知的两个开关（v1.3.2）。
+//
+//	merge: 合并同一 key 的实时通知（不新增行）
+//	mute:  合并 / 重复的通知一律不响
+func (s *Server) SetRepeatOptions(merge, mute bool) {
+	s.mu.Lock()
+	s.mergeRepeat, s.muteRepeat = merge, mute
+	s.mu.Unlock()
+}
+
+// RepeatOptions 返回两个开关的当前值。
+func (s *Server) RepeatOptions() (merge, mute bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.mergeRepeat, s.muteRepeat
+}
+
+// admitNotification 决定一条推送如何落地（v1.3.2 的合并与兜底去重）。
+//
+// 返回：
+//
+//	rec    落地的记录（merged 时为被原地更新的那条）
+//	merged 命中了同 key 的实时记录，已原地更新，没有新增行
+//	dup    命中 10 秒内的重复内容，已拦下，没有新增行
+//	silent 这条是否应静音
+//
+// 规则：
+//   - 只在 merge 开关打开时生效；关掉即完全回到 1.3.1 的「收到就落库」。
+//   - 实时类（Live + 非空 Key）按 key 找到最近一条实时记录原地更新。
+//   - 其余情况按「包名 + 标题 + 归一化正文」在 10 秒内拦重复。
+//   - 归一化只处理时间 / 时长 / 百分比，验证码、金额、条数不受影响。
+func (s *Server) admitNotification(n Notification, dev *Device) (rec Record, merged, dup, silent bool) {
+	now := time.Now()
+	fp := contentFingerprint(n)
+
+	s.mu.Lock()
+	if s.mergeRepeat {
+		if n.Live && n.Key != "" {
+			for i := len(s.records) - 1; i >= 0; i-- {
+				r := &s.records[i]
+				if !r.Live || r.Key != n.Key {
+					continue
+				}
+				if n.Pkg != "" && r.Pkg != "" && r.Pkg != n.Pkg {
+					continue
+				}
+				// 太久以前的实时记录不再合并，避免「昨天的倒计时吃掉今天的记录」
+				last := r.ReceivedAt
+				if !r.UpdatedAt.IsZero() {
+					last = r.UpdatedAt
+				}
+				if now.Sub(last) > liveMergeWindow {
+					break
+				}
+				r.Title = n.Title
+				r.Text = n.Text
+				r.Timestamp = n.Timestamp
+				r.Hidden = n.Hidden
+				r.Silent = n.Silent || s.muteRepeat
+				r.UpdatedAt = now
+				s.lastNotifyAt = now
+				s.notifyMerged++
+				out := *r
+				mute := s.muteRepeat
+				s.mu.Unlock()
+				return out, true, false, n.Silent || mute
+			}
+		}
+		if at, ok := s.lastFP[fp]; ok && now.Sub(at) < repeatWindow {
+			s.lastFP[fp] = now
+			s.lastNotifyAt = now
+			s.notifyDup++
+			mute := s.muteRepeat
+			s.mu.Unlock()
+			return Record{}, false, true, n.Silent || mute
+		}
+		s.lastFP[fp] = now
+		s.pruneFingerprintsLocked(now)
+	}
+
+	rec = s.appendRecordLocked(n, dev, now)
+	s.mu.Unlock()
+	return rec, false, false, n.Silent
+}
+
+// pruneFingerprintsLocked 控制指纹表体积（调用方必须持锁）。
+func (s *Server) pruneFingerprintsLocked(now time.Time) {
+	if len(s.lastFP) <= maxFingerprint {
+		return
+	}
+	for k, at := range s.lastFP {
+		if now.Sub(at) >= repeatWindow*6 {
+			delete(s.lastFP, k)
+		}
+	}
+	if len(s.lastFP) > maxFingerprint {
+		// 仍然超限：整表清空。它只是兜底去重表，清空不影响正确性。
+		s.lastFP = make(map[string]time.Time)
+	}
+}
+
+var (
+	fpTimeRe     = regexp.MustCompile(`\d{1,2}:\d{2}(?::\d{2})?`)
+	fpDurationRe = regexp.MustCompile(`\d+\s*(分钟|分|小时|时|秒|天)`)
+	fpPercentRe  = regexp.MustCompile(`\d+\s*%`)
+	fpSpaceRe    = regexp.MustCompile(`\s+`)
+)
+
+// normalizeContent 把「时间 / 时长 / 百分比」这类会自增的数字换成占位符，
+// 让「已使用 10:42」和「已使用 10:47」落到同一个指纹。
+//
+// 归一化是保守的：只处理 `10:42`、`5 分钟`、`45%` 这类明确形态，
+// 验证码、金额、条数等纯数字保持原样，不会被误判成同一条。
+func normalizeContent(s string) string {
+	s = fpTimeRe.ReplaceAllString(s, "#:##")
+	s = fpDurationRe.ReplaceAllString(s, "#$1")
+	s = fpPercentRe.ReplaceAllString(s, "#%")
+	return strings.TrimSpace(fpSpaceRe.ReplaceAllString(s, " "))
+}
+
+// contentFingerprint 是内容兜底去重用的键：包名（缺失时退回 App 名）+ 标题 + 归一化正文。
+func contentFingerprint(n Notification) string {
+	pkg := n.Pkg
+	if pkg == "" {
+		pkg = n.AppName
+	}
+	return pkg + "\x00" + strings.TrimSpace(n.Title) + "\x00" + normalizeContent(n.Text)
 }
 
 // ---- 设备 ----
@@ -432,6 +602,10 @@ type State struct {
 	NotifyCount   int          `json:"notify_count"`
 	TodayCount    int          `json:"today_count"`
 	NotifyRejects int          `json:"notify_rejects"`
+	NotifyMerged  int          `json:"notify_merged"`
+	NotifyDup     int          `json:"notify_dup"`
+	MergeRepeat   bool         `json:"merge_repeat"`
+	MuteRepeat    bool         `json:"mute_repeat"`
 	LastNotifyAt  string       `json:"last_notify_at"`
 	Devices       []DeviceView `json:"devices"`
 	Records       []Record     `json:"records"`
@@ -460,6 +634,10 @@ func (s *Server) Snapshot(version string) State {
 		NotifyCount:   s.notifyCount,
 		TodayCount:    s.todayCount,
 		NotifyRejects: s.notifyRejects,
+		NotifyMerged:  s.notifyMerged,
+		NotifyDup:     s.notifyDup,
+		MergeRepeat:   s.mergeRepeat,
+		MuteRepeat:    s.muteRepeat,
 		StoreDir:      s.storeDir,
 	}
 	if !s.lastNotifyAt.IsZero() {
@@ -669,7 +847,7 @@ func (s *Server) handlePing(w http.ResponseWriter, r *http.Request) {
 		"name":     name,
 		"port":     port,
 		"version":  ProtocolVersion,
-		"protocol": 3,
+		"protocol": ProtocolNum,
 	})
 }
 
@@ -691,6 +869,7 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 		"ok":       true,
 		"name":     s.Name(),
 		"version":  ProtocolVersion,
+		"protocol": ProtocolNum,
 		"pending":  msgs,
 		"interval": 5,
 	})
@@ -734,13 +913,24 @@ func (s *Server) handleNotify(hook Hook) http.HandlerFunc {
 			return
 		}
 		s.touch(d, remoteIP(r))
-		rec := s.addRecord(n, d)
-		s.save()
+		rec, merged, dup, silent := s.admitNotification(n, d)
+		n.Silent = silent
+		if !dup {
+			s.save()
+		}
 		if hook != nil {
 			hook.OnNotification(n)
 		}
-		s.broadcast(Event{Type: "notify", Record: &rec})
-		log.Printf("[notify] 成功 app=%s title=%q（来源=%s）\n", n.AppName, n.Title, remote)
+		switch {
+		case merged:
+			s.broadcast(Event{Type: "notify", Record: &rec})
+			log.Printf("[notify] 合并 app=%s title=%q live=%v（来源=%s）\n", n.AppName, n.Title, n.Live, remote)
+		case dup:
+			log.Printf("[notify] 忽略重复 app=%s title=%q（来源=%s）\n", n.AppName, n.Title, remote)
+		default:
+			s.broadcast(Event{Type: "notify", Record: &rec})
+			log.Printf("[notify] 成功 app=%s title=%q（来源=%s）\n", n.AppName, n.Title, remote)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 	}
 }
@@ -788,6 +978,9 @@ func (s *Server) handleDebugState(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	name := s.name
+	merged := s.notifyMerged
+	dups := s.notifyDup
+	mergeOpt, muteOpt := s.mergeRepeat, s.muteRepeat
 	s.mu.Unlock()
 
 	lastNotifyStr := "（从未）"
@@ -797,10 +990,15 @@ func (s *Server) handleDebugState(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":             true,
 		"version":        ProtocolVersion,
+		"protocol":       ProtocolNum,
 		"started_at":     start.Format(time.RFC3339),
 		"last_notify_at": lastNotifyStr,
 		"notify_count":   count,
 		"notify_rejects": rejects,
+		"notify_merged":  merged,
+		"notify_dup":     dups,
+		"merge_repeat":   mergeOpt,
+		"mute_repeat":    muteOpt,
 		"record_count":   recCount,
 		"record_storage": s.storeDir,
 		"paired":         paired > 0,

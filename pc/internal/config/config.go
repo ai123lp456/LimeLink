@@ -19,9 +19,26 @@ type Config struct {
 	NoWindow bool   `json:"no_window,omitempty"`   // 启动时不自动打开界面（v1.3.0）
 	Theme    string `json:"theme,omitempty"`       // 界面主题：light / dark（v1.3.1）
 
+	// v1.3.2：重复通知的两个开关。用指针区分「配置里没写过」和「显式关掉」，
+	// 缺省（nil）一律按开处理，老配置文件升级后自动开启。
+	MergeRepeat *bool `json:"merge_repeat,omitempty"` // 合并重复通知（同 key 的实时通知原地刷新）
+	MuteRepeat  *bool `json:"mute_repeat,omitempty"`  // 重复通知静音
+
 	// CloseHinted 是否已经解释过「关窗不退出」
 	CloseHinted bool `json:"close_hinted,omitempty"`
 }
+
+// MergeRepeatEnabled 返回「合并重复通知」是否开启（缺省开）。
+func (c Config) MergeRepeatEnabled() bool { return c.MergeRepeat == nil || *c.MergeRepeat }
+
+// MuteRepeatEnabled 返回「重复通知静音」是否开启（缺省开）。
+func (c Config) MuteRepeatEnabled() bool { return c.MuteRepeat == nil || *c.MuteRepeat }
+
+// SetMergeRepeat 写入「合并重复通知」开关。
+func (c *Config) SetMergeRepeat(v bool) { c.MergeRepeat = &v }
+
+// SetMuteRepeat 写入「重复通知静音」开关。
+func (c *Config) SetMuteRepeat(v bool) { c.MuteRepeat = &v }
 
 // ThemeName 返回界面主题（light / dark），空则浅色。
 func (c Config) ThemeName() string {

@@ -317,6 +317,23 @@
                 android:textColor="@color/ink"
                 android:textSize="14sp" />
 
+            <Switch
+                android:id="@+id/swMerge"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="合并计时/进度类通知"
+                android:textColor="@color/ink"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:text="开着时：同一条通知被应用反复刷新（计时、播放、进度条）只推首次，之后静默更新，电脑端不再每 5 秒响一次。关掉即回到旧行为。"
+                android:textColor="@color/muted"
+                android:textSize="11sp"
+                android:lineSpacingExtra="3dp" />
+
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
