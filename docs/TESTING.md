@@ -30,7 +30,7 @@ go test ./... -run 'Normalize|Live|Different|Legacy|Repeat|Mute|Protocol|Silent|
 
 - `TestNormalizeContent` / `TestLiveNotificationMergesAndMutes` / `TestDifferentContentStillAdded`
 - `TestLegacyClientDuplicateSuppressed` / `TestLegacyTimerSpamSuppressed`
-- `TestRepeatSwitchesOffRestoreLegacy` / `TestMuteOffKeepsMergeButRings`
+- `TestRepeatSwitchesOffRestoreLegacy` / `TestMuteOffKeepsMergeButRings` / `TestStaleLiveRecordNotMerged`
 - `TestNotifyProtocolCompatibility` / `TestSilentNotificationMuted` / `TestToastTagPerSource`
 
 端到端脚本（不污染真实数据，临时 `%APPDATA%`）：

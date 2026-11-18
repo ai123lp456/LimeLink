@@ -51,7 +51,7 @@
 
 ### 构建
 
-- `go vet ./...`、`go test ./...` 全绿；新增去重 / 合并 / 静音 / 协议兼容的单测共 10 个。
+- `go vet ./...`、`go test ./...` 全绿；新增去重 / 合并 / 静音 / 协议兼容的单测共 11 个。
 - exe 资源版本、`appVersion`、`ProtocolVersion`、Toast `AppUserModelID` 同步到 1.3.2。
 
 ## 1.3.1 收尾（2026-11-15 夜，PC 端）
