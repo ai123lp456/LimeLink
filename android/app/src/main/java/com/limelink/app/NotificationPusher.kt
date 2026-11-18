@@ -88,7 +88,9 @@ class NotificationPusher(
         val progress: Boolean,
         val chronometer: Boolean,
         val categoryProgress: Boolean,
-        val whitelist: Boolean
+        val whitelist: Boolean,
+        /** 消息类通知（msg / email / social）：永远不按「实时状态」处理，避免把多条消息合并成一行。 */
+        val messageLike: Boolean
     )
 
     /** 判重结论：推不推、是否实时状态类、是否静音。 */
@@ -139,8 +141,21 @@ class NotificationPusher(
             progress = progress,
             chronometer = chronometer,
             categoryProgress = categoryProgress,
-            whitelist = isWhitelisted(n.category)
+            whitelist = isWhitelisted(n.category),
+            messageLike = isMessagingCategory(n.category)
         )
+    }
+
+    /**
+     * 消息类通知（聊天 / 邮件 / 社交）永远不按「实时状态类」处理。
+     * 少数应用会给这类通知设 FLAG_ONLY_ALERT_ONCE，若据此判成实时状态，
+     * 同一会话的多条不同消息会被合并成一行、除首条外全部静音——这是最不能接受的退化。
+     */
+    private fun isMessagingCategory(category: String?): Boolean = when (category) {
+        Notification.CATEGORY_MESSAGE,
+        Notification.CATEGORY_EMAIL,
+        Notification.CATEGORY_SOCIAL -> true
+        else -> false
     }
 
     private fun safeBool(extras: android.os.Bundle, key: String): Boolean = try {
@@ -173,8 +188,8 @@ class NotificationPusher(
         // 用户关掉合并开关：完全不判重、不静音（= 1.3.1）
         if (!settings.isMergeLiveEnabled()) return Decision(true, false, false)
 
-        val live = sig.alertOnce ||
-            (sig.ongoing && (sig.progress || sig.chronometer || sig.categoryProgress))
+        val live = !sig.messageLike &&
+            (sig.alertOnce || (sig.ongoing && (sig.progress || sig.chronometer || sig.categoryProgress)))
 
         // 实时状态类先用「数字归一化」后的指纹，普通通知用原文指纹。
         // 只对实时类归一化，验证码 / 金额 / 计数这类纯数字消息永远走原文比对，不会被误伤。
